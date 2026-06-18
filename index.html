@@ -226,8 +226,25 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .btn-del-c:hover{opacity:.85}
 
 /* TOAST */
-#toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;font-weight:600;z-index:999;transition:transform .25s;white-space:nowrap}
-#toast.show{transform:translateX(-50%) translateY(0)}
+/* TOAST */
+#toast{
+  position:fixed;
+  bottom:calc(90px + env(safe-area-inset-bottom,0px));
+  left:50%;
+  transform:translateX(-50%);
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:var(--rs);
+  padding:10px 20px;
+  font-size:13px;
+  font-weight:600;
+  z-index:999;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .25s ease;
+}
+#toast.show{opacity:1;pointer-events:auto}
 </style>
 </head>
 <body>
@@ -470,11 +487,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
   <div class="modal">
     <div class="modal-hd"><div class="modal-title" id="cat-edit-title">Нова категорія</div><button class="modal-close" onclick="closeModal('modal-cat-edit')">✕</button></div>
     <div class="form-group">
-      <label class="form-label">Іконка та назва</label>
-      <div style="display:flex;gap:10px">
-        <button class="emoji-btn" id="cat-edit-emoji-btn" onclick="openModal('modal-emoji')">📦</button>
-        <input class="form-input" id="cat-edit-label" placeholder="Назва категорії" style="flex:1">
-      </div>
+      <label class="form-label">Назва (додай емодзі на початку)</label>
+      <input class="form-input" id="cat-edit-label" placeholder="🛒 Продукти">
     </div>
     <button class="btn-primary" onclick="saveCatEdit()">Зберегти</button>
     <button class="btn-danger-full" id="cat-delete-btn" style="display:none" onclick="deleteCatFromModal()">Видалити категорію</button>
@@ -1189,26 +1203,24 @@ function openCatEdit(type,index){
   const cats=getCatsFor(curUser,type);
   const delBtn=document.getElementById('cat-delete-btn');
   if(index===null){
-    catEditIcon='📦';
     document.getElementById('cat-edit-title').textContent='Нова категорія';
     document.getElementById('cat-edit-label').value='';
     delBtn.style.display='none';
   }else{
     const c=cats[index];
-    catEditIcon=c.icon||'📦';
     document.getElementById('cat-edit-title').textContent='Редагувати категорію';
-    document.getElementById('cat-edit-label').value=c.label;
+    document.getElementById('cat-edit-label').value=catToString(c);
     delBtn.style.display='block';
   }
-  document.getElementById('cat-edit-emoji-btn').textContent=catEditIcon;
   openModal('modal-cat-edit');
 }
 function saveCatEdit(){
-  const label=document.getElementById('cat-edit-label').value.trim();
-  if(!label){showToast('⚠️ Введи назву');return}
+  const raw=document.getElementById('cat-edit-label').value.trim();
+  if(!raw){showToast('⚠️ Введи назву');return}
+  const parsed=parseCatString(raw);
   const cats=getCatsFor(curUser,catEditType);
-  if(catEditIndex===null)cats.push({icon:catEditIcon,label});
-  else cats[catEditIndex]={icon:catEditIcon,label};
+  if(catEditIndex===null)cats.push(parsed);
+  else cats[catEditIndex]=parsed;
   saveCatsFor(curUser,catEditType,cats);
   closeModal('modal-cat-edit');renderSettings();showToast('✓ Збережено');
 }
@@ -1233,12 +1245,12 @@ function fmt(n){return Number(n).toLocaleString('uk-UA',{minimumFractionDigits:0
 let _toastTimer=null;
 function showToast(msg){
   const t=document.getElementById('toast');
-  if(_toastTimer){clearTimeout(_toastTimer);t.classList.remove('show')}
+  clearTimeout(_toastTimer);
+  t.classList.remove('show');
   t.textContent=msg;
-  requestAnimationFrame(()=>{
-    t.classList.add('show');
-    _toastTimer=setTimeout(()=>{t.classList.remove('show');_toastTimer=null},2200);
-  });
+  void t.offsetHeight;
+  t.classList.add('show');
+  _toastTimer=setTimeout(()=>{t.classList.remove('show')},2200);
 }
 
 // INIT
