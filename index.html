@@ -309,7 +309,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <!-- HISTORY -->
     <div class="tab-panel" id="tab-history">
       <div class="sec-hd"><div class="sec-title">Операції</div></div>
-      <div class="filter-row">
+      <div class="filter-row" style="flex-wrap:wrap">
         <select class="filter-sel" id="f-who" onchange="renderHistory()">
           <option value="all">👥 Всі</option>
           <option value="user1" id="f-n1">Профіль 1</option>
@@ -323,8 +323,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <select class="filter-sel" id="f-cat" onchange="renderHistory()">
           <option value="all">Всі категорії</option>
         </select>
-      </div>
-      <div class="filter-row" style="align-items:center">
         <select class="filter-sel" id="f-date-preset" onchange="onDatePreset()">
           <option value="all">📅 Весь час</option>
           <option value="today">Сьогодні</option>
@@ -333,11 +331,11 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
           <option value="last_month">Минулий місяць</option>
           <option value="custom">Свій проміжок…</option>
         </select>
-        <div id="f-date-custom" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
-          <input type="date" class="filter-sel" id="f-date-from" onchange="renderHistory()" style="flex:1;min-width:130px">
-          <span style="color:var(--muted);font-size:13px">—</span>
-          <input type="date" class="filter-sel" id="f-date-to" onchange="renderHistory()" style="flex:1;min-width:130px">
-        </div>
+      </div>
+      <div id="f-date-custom" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+        <input type="date" class="filter-sel" id="f-date-from" onchange="renderHistory()" style="flex:1;min-width:130px">
+        <span style="color:var(--muted);font-size:13px">—</span>
+        <input type="date" class="filter-sel" id="f-date-to" onchange="renderHistory()" style="flex:1;min-width:130px">
       </div>
       <div class="tx-list" id="history-list"></div>
     </div>
@@ -406,6 +404,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
       <div class="form-group">
         <label class="form-label">Примітка (необов'язково)</label>
         <input class="form-input" id="tx-note" placeholder="АТБ, вечеря, зарплата...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="tx-date" type="date">
       </div>
     </div>
 
@@ -526,7 +528,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 <script>
 // ── SUPABASE ──
 const SB_URL='https://framqqclokgtexkduutl.supabase.co';
-const SB_KEY='sb_publishable_VRunaay5niC0BsChBNkH2g_CO4G1xUJ';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyYW1xcWNsb2tndGV4a2R1dXRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MDE1MzAsImV4cCI6MjA5NzM3NzUzMH0.ZDmur3m1zs9Noz7QzVsnblFJZu77825EtJCIGaknIdM';
 async function sbFetch(path,opts={}){
   try{
     const method=opts.method||'GET';
@@ -599,7 +601,7 @@ async function deleteTxRow(id){_txCache=null;await sbFetch('transactions?id=eq.'
 async function updateTxRow(t){
   _txCache=null;
   await sbFetch('transactions?id=eq.'+t.id,{method:'PATCH',body:JSON.stringify({
-    type:t.type,amount:t.amount,category:t.category||null,note:t.note||null,asset_name:t.assetName||null
+    type:t.type,amount:t.amount,category:t.category||null,note:t.note||null,asset_name:t.assetName||null,date:t.date
   })});
 }
 
@@ -801,12 +803,14 @@ async function saveTxForm(){
   if(!assetName){showToast('⚠️ Обери картку');return}
   const cat=document.getElementById('tx-cat').value;
   const note=document.getElementById('tx-note').value.trim();
+  const dateVal=document.getElementById('tx-date').value;
+  const date=dateVal?new Date(dateVal+'T12:00:00').toISOString():new Date().toISOString();
   showLoader(true);
   if(editingTxId){
-    await updateTxRow({id:editingTxId,type:txType,amount,category:cat,note,assetName});
+    await updateTxRow({id:editingTxId,type:txType,amount,category:cat,note,assetName,date});
     showToast('✓ Збережено');
   }else{
-    await addTxRow({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date:new Date().toISOString()});
+    await addTxRow({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date});
     showToast('✓ Операцію додано');
   }
   showLoader(false);
@@ -840,6 +844,7 @@ function resetTxForm(){
   document.getElementById('tx-amount').value='';
   document.getElementById('tx-note').value='';
   document.getElementById('calc-result').textContent='';
+  document.getElementById('tx-date').value=new Date().toISOString().slice(0,10);
   document.getElementById('tr-amount').value='';
   document.getElementById('tr-fee').value='0';
   document.getElementById('tr-note').value='';
@@ -861,6 +866,7 @@ async function editTx(t){
   setType(t.type);
   document.getElementById('tx-amount').value=t.amount;
   document.getElementById('tx-note').value=t.note||'';
+  document.getElementById('tx-date').value=t.date?t.date.slice(0,10):new Date().toISOString().slice(0,10);
   populateCatSelect();
   await populateAssetSelect(document.getElementById('tx-asset'),true);
   document.getElementById('tx-cat').value=t.category;
@@ -960,7 +966,6 @@ async function renderDashboard(){
         </div>
       </div>
       <div class="bento">
-        <!-- row 1: total exp + my income -->
         <div class="bento-row bento-2">
           <div class="bc bc-total">
             <div class="bc-label">Мої витрати</div>
@@ -974,28 +979,20 @@ async function renderDashboard(){
             <div class="bc-sub" style="color:rgba(52,208,122,.6)">${myBalance>=0?'профіцит':'дефіцит'} ${fmt(Math.abs(myBalance))} ₴</div>
           </div>
         </div>
-        <!-- row 2: assets -->
-        <div class="bento-row ${assetCols}">
-          ${assetBentoCards()}
-        </div>
       </div>
     </div>
   `;
 
   // ── PARTNER BENTO ──
-  const partnerName2=partnerName;
-  const partnerExpByCat={};partnerExp.forEach(t=>{partnerExpByCat[t.category]=(partnerExpByCat[t.category]||0)+t.amount});
-  const topPartner=Object.entries(partnerExpByCat).sort((a,b)=>b[1]-a[1]).slice(0,2);
-
   document.getElementById('partner-bento').innerHTML=`
     <div class="partner-block">
       <div class="partner-hd">
-        <div class="avatar ${partnerUser==='user1'?'av1':'av2'}" style="width:32px;height:32px;font-size:13px">${partnerName2[0].toUpperCase()}</div>
-        <div class="partner-name">${partnerName2}</div>
+        <div class="avatar ${partnerUser==='user1'?'av1':'av2'}" style="width:32px;height:32px;font-size:13px">${partnerName[0].toUpperCase()}</div>
+        <div class="partner-name">${partnerName}</div>
       </div>
       <div class="bento-partner">
         <div class="bc ${partnerUser==='user1'?'bc-accent':'bc-u2'}">
-          <div class="bc-label">Витрати</div>
+          <div class="bc-label">Витрати ${partnerName}</div>
           <div class="bc-value sm" style="color:var(--red)">−${fmt(partnerExpTotal)} ₴</div>
           <div class="bc-sub">за місяць</div>
         </div>
@@ -1004,7 +1001,6 @@ async function renderDashboard(){
           <div class="bc-value sm c-red">−${fmt(myExpTotal+partnerExpTotal)} ₴</div>
           <div class="bc-sub">обидва</div>
         </div>
-        ${topPartner.map(([c,v])=>`<div class="bc bc-glass"><div class="bc-asset-name">${c}</div><div class="bc-value sm" style="color:var(--red)">−${fmt(v)} ₴</div></div>`).join('')}
       </div>
     </div>
   `;
