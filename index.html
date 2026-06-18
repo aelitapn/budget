@@ -529,13 +529,28 @@ const SB_URL='https://framqqclokgtexkduutl.supabase.co';
 const SB_KEY='sb_publishable_VRunaay5niC0BsChBNkH2g_CO4G1xUJ';
 async function sbFetch(path,opts={}){
   try{
-    const r=await fetch(SB_URL+'/rest/v1/'+path,{
-      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})},
-      ...opts
-    });
-    if(!r.ok){console.error('SB',r.status,await r.text());return null}
-    return r.status===204?null:await r.json();
-  }catch(e){console.error('SB fetch error',e);return null}
+    const method=opts.method||'GET';
+    const headers={
+      'apikey':SB_KEY,
+      'Authorization':'Bearer '+SB_KEY,
+      'Content-Type':'application/json',
+    };
+    if(method==='POST')headers['Prefer']='return=minimal';
+    if(method==='PATCH')headers['Prefer']='return=minimal';
+    const r=await fetch(SB_URL+'/rest/v1/'+path,{...opts,headers:{...headers,...(opts.headers||{})}});
+    if(!r.ok){
+      const txt=await r.text();
+      console.error('Supabase error',r.status,path,txt);
+      showToast('⚠️ Помилка бази даних: '+r.status);
+      return null;
+    }
+    if(r.status===204||r.status===201)return null;
+    return await r.json();
+  }catch(e){
+    console.error('Supabase fetch error',e);
+    showToast('⚠️ Немає з\'єднання з базою');
+    return null;
+  }
 }
 
 // ── KEYS ──
@@ -593,7 +608,7 @@ let _assetsCache={};
 async function getAssets(u){
   if(_assetsCache[u])return _assetsCache[u];
   const data=await sbFetch('assets?select=*&user_id=eq.'+u+'&order=id.asc');
-  _assetsCache[u]=(data||[]).map(r=>({id:r.id,name:r.name,type:r.type,initialBalance:Number(r.initial_balance),iconUrl:r.icon_url}));
+  _assetsCache[u]=(data||[]).map(r=>({id:r.id,name:r.name,type:r.type,initialBalance:Number(r.initial_balance||0),iconUrl:r.icon_url||null}));
   return _assetsCache[u];
 }
 async function saveAssetRow(u,a,isEdit){
@@ -1105,13 +1120,13 @@ function txHtml(t){
 async function calcAssetBalance(assets,allTx,assetName){
   const a=assets.find(x=>x.name===assetName);
   if(!a)return 0;
-  const init=parseFloat(a.initialBalance)||0;
+  const init=Number(a.initialBalance)||0;
   const txs=allTx.filter(t=>t.user===curUser&&t.assetName===assetName&&t.type!=='transfer');
-  const spent=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const earned=txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const spent=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+(Number(t.amount)||0),0);
+  const earned=txs.filter(t=>t.type==='income').reduce((s,t)=>s+(Number(t.amount)||0),0);
   const transfers=allTx.filter(t=>t.user===curUser&&t.type==='transfer'&&t.transferOwn);
-  const out=transfers.filter(t=>t.from===assetName).reduce((s,t)=>s+t.amount,0);
-  const inn=transfers.filter(t=>t.to===assetName).reduce((s,t)=>s+t.amount,0);
+  const out=transfers.filter(t=>t.from===assetName).reduce((s,t)=>s+(Number(t.amount)||0),0);
+  const inn=transfers.filter(t=>t.to===assetName).reduce((s,t)=>s+(Number(t.amount)||0),0);
   return init-spent+earned-out+inn;
 }
 async function renderAssets(){
