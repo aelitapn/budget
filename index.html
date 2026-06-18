@@ -521,11 +521,25 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 </div>
 
 <div id="toast"></div>
+<div id="app-loader" style="display:none;position:fixed;inset:0;background:rgba(15,17,23,.7);z-index:500;align-items:center;justify-content:center;font-size:28px">⏳</div>
 
 <script>
+// ── SUPABASE ──
+const SB_URL='https://framqqclokgtexkduutl.supabase.co';
+const SB_KEY='sb_publishable_VRunaay5niC0BsChBNkH2g_CO4G1xUJ';
+async function sbFetch(path,opts={}){
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/'+path,{
+      headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=representation',...(opts.headers||{})},
+      ...opts
+    });
+    if(!r.ok){console.error('SB',r.status,await r.text());return null}
+    return r.status===204?null:await r.json();
+  }catch(e){console.error('SB fetch error',e);return null}
+}
+
 // ── KEYS ──
-const K_NAMES='bgt_names',K_TX='bgt_tx',K_ASSETS='bgt_assets_',K_CATS='bgt_cats_',K_CATS_INC='bgt_cats_inc_';
-const K_CATS_OLD='bgt_cats',K_CATS_INC_OLD='bgt_cats_inc';
+const K_NAMES='bgt_names',K_CATS='bgt_cats_',K_CATS_INC='bgt_cats_inc_',K_SESSION='bgt_session';
 
 const DEFAULT_CATS=[
  {icon:'🛒',label:'Продукти'},{icon:'🍽️',label:'Кафе і ресторани'},{icon:'🚗',label:'Транспорт'},
@@ -539,15 +553,58 @@ const DEFAULT_INC=[
 ];
 const EMOJI_LIST=['🛒','🍽️','🍔','🍕','☕','🧋','🍺','🍷','🚗','🚌','🚆','✈️','⛽','🚲','🏠','💡','🔥','💧','🧹','👕','👟','👜','💊','🏥','🧴','🎮','🎬','🎵','📚','🎓','🏨','🐶','🐱','🐾','💰','💵','💳','🏦','📊','📈','🎁','💼','📱','💻','🖥️','⚡','🧾','🛠️','🌳','🏋️','💅','✂️','🎨','🚿','🪴','👶','🎂','🍿','🧺','📦','❓','⭐','🔧'];
 
-// ── STORAGE ──
+// ── LOCAL helpers ──
 function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}}
 function lss(k,v){localStorage.setItem(k,JSON.stringify(v))}
 function getNames(){return ls(K_NAMES)||{user1:'Профіль 1',user2:'Профіль 2'}}
-function getTx(){return ls(K_TX)||[]}
-function saveTxData(a){lss(K_TX,a)}
-function getAssets(u){return ls(K_ASSETS+u)||[]}
-function saveAssets(u,a){lss(K_ASSETS+u,a)}
 
+// ── TX ──
+let _txCache=null;
+async function getTx(){
+  if(_txCache)return _txCache;
+  showLoader(true);
+  const data=await sbFetch('transactions?select=*&order=date.desc');
+  showLoader(false);
+  _txCache=(data||[]).map(r=>({
+    id:r.id,user:r.user_id,type:r.type,amount:Number(r.amount),
+    category:r.category,note:r.note,assetName:r.asset_name,
+    transferOwn:r.transfer_own,from:r.transfer_from,to:r.transfer_to,date:r.date
+  }));
+  return _txCache;
+}
+async function addTxRow(t){
+  _txCache=null;
+  await sbFetch('transactions',{method:'POST',body:JSON.stringify({
+    id:t.id,user_id:t.user,type:t.type,amount:t.amount,
+    category:t.category||null,note:t.note||null,asset_name:t.assetName||null,
+    transfer_own:t.transferOwn||false,transfer_from:t.from||null,transfer_to:t.to||null,date:t.date
+  })});
+}
+async function deleteTxRow(id){_txCache=null;await sbFetch('transactions?id=eq.'+id,{method:'DELETE'})}
+async function updateTxRow(t){
+  _txCache=null;
+  await sbFetch('transactions?id=eq.'+t.id,{method:'PATCH',body:JSON.stringify({
+    type:t.type,amount:t.amount,category:t.category||null,note:t.note||null,asset_name:t.assetName||null
+  })});
+}
+
+// ── ASSETS ──
+let _assetsCache={};
+async function getAssets(u){
+  if(_assetsCache[u])return _assetsCache[u];
+  const data=await sbFetch('assets?select=*&user_id=eq.'+u+'&order=id.asc');
+  _assetsCache[u]=(data||[]).map(r=>({id:r.id,name:r.name,type:r.type,initialBalance:Number(r.initial_balance),iconUrl:r.icon_url}));
+  return _assetsCache[u];
+}
+async function saveAssetRow(u,a,isEdit){
+  _assetsCache[u]=null;
+  const body={name:a.name,type:a.type,initial_balance:a.initialBalance,icon_url:a.iconUrl||null};
+  if(isEdit)await sbFetch('assets?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify(body)});
+  else await sbFetch('assets',{method:'POST',body:JSON.stringify({user_id:u,...body})});
+}
+async function deleteAssetRow(u,id){_assetsCache[u]=null;await sbFetch('assets?id=eq.'+id,{method:'DELETE'})}
+
+// ── CATS (local per device/user) ──
 function parseCatString(s){
   const m=String(s||'').match(/^(\S+)\s+(.*)$/);
   return m?{icon:m[1],label:m[2]}:{icon:'📦',label:String(s||'')};
@@ -556,18 +613,14 @@ function catToString(c){return (c.icon?c.icon+' ':'')+c.label}
 function stripEmoji(s){return String(s||'').replace(/^\S+\s*/,'')}
 function getCatsFor(user,type){
   const key=(type==='income'?K_CATS_INC:K_CATS)+user;
-  let v=ls(key);
-  if(v)return v;
-  const oldKey=type==='income'?K_CATS_INC_OLD:K_CATS_OLD;
-  const old=ls(oldKey);
-  if(old&&Array.isArray(old)&&old.length){
-    const migrated=old.map(parseCatString);
-    lss(key,migrated);return migrated;
-  }
+  let v=ls(key);if(v)return v;
   const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
   lss(key,def);return def;
 }
 function saveCatsFor(user,type,arr){lss((type==='income'?K_CATS_INC:K_CATS)+user,arr)}
+
+// ── LOADER ──
+function showLoader(on){const l=document.getElementById('app-loader');if(l)l.style.display=on?'flex':'none'}
 
 // ── STATE ──
 let curUser=null,txType='expense';
@@ -577,9 +630,7 @@ let catEditType=null,catEditIndex=null,catEditIcon='📦';
 let confirmCallback=null,recentExpanded=false;
 
 // ── AUTH ──
-const K_SESSION='bgt_session';
-
-function login(u){
+async function login(u){
   curUser=u;
   lss(K_SESSION,u);
   const n=getNames();
@@ -591,7 +642,7 @@ function login(u){
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
   updateFilterNames();
-  goTab('dashboard');
+  await goTab('dashboard');
 }
 function logout(){
   curUser=null;
@@ -617,14 +668,14 @@ function saveNames(){
 }
 
 // ── MODALS ──
-function openModal(id){
+async function openModal(id){
   if(id==='modal-tx'){
     if(txType==='transfer'){
-      populateAssetSelect(document.getElementById('tr-from'),false);
-      populateAssetSelect(document.getElementById('tr-to'),false);
+      await populateAssetSelect(document.getElementById('tr-from'),false);
+      await populateAssetSelect(document.getElementById('tr-to'),false);
     } else {
       populateCatSelect();
-      populateAssetSelect(document.getElementById('tx-asset'),false);
+      await populateAssetSelect(document.getElementById('tx-asset'),false);
     }
   }
   if(id==='modal-names'){
@@ -652,15 +703,15 @@ function closeConfirm(){document.getElementById('confirm-overlay').classList.rem
 document.getElementById('confirm-del-btn').addEventListener('click',()=>{const cb=confirmCallback;closeConfirm();if(cb)cb()});
 
 // ── TABS ──
-function goTab(t){
+async function goTab(t){
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.bottom-nav-item').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+t).classList.add('active');
   const idx={dashboard:0,history:1,assets:2,settings:3};
   document.querySelectorAll('.bottom-nav-item')[idx[t]].classList.add('active');
-  if(t==='dashboard')renderDashboard();
-  if(t==='history')renderHistory();
-  if(t==='assets')renderAssets();
+  if(t==='dashboard')await renderDashboard();
+  if(t==='history')await renderHistory();
+  if(t==='assets')await renderAssets();
   if(t==='settings')renderSettings();
 }
 
@@ -674,7 +725,7 @@ function shiftMonth(d){
 function monthTxs(){return getTx().filter(t=>{const d=new Date(t.date);return d.getMonth()===viewMonth&&d.getFullYear()===viewYear})}
 
 // ── TYPE TOGGLE ──
-function setType(t){
+async function setType(t){
   txType=t;
   ['expense','income','transfer'].forEach(x=>{
     const b=document.getElementById('tb-'+x);
@@ -716,8 +767,8 @@ function populateCatSelect(){
   const cats=getCatsFor(curUser,txType==='income'?'income':'expense');
   s.innerHTML=cats.map(c=>{const v=catToString(c);return `<option value="${v}">${v}</option>`}).join('');
 }
-function populateAssetSelect(selectEl,_unused){
-  const assets=getAssets(curUser);
+async function populateAssetSelect(selectEl,includeNone){
+  const assets=await getAssets(curUser);
   if(!assets.length){
     selectEl.innerHTML='<option value="" disabled selected>Немає карток — додай у «Активи»</option>';
     return;
@@ -726,8 +777,8 @@ function populateAssetSelect(selectEl,_unused){
 }
 
 // ── SAVE TX (add + edit) ──
-function saveTxForm(){
-  if(txType==='transfer'){saveTransfer();return}
+async function saveTxForm(){
+  if(txType==='transfer'){await saveTransfer();return}
   const raw=document.getElementById('tx-amount').value;
   const amount=resolveAmount(raw);
   if(!amount){showToast('⚠️ Введи суму');return}
@@ -735,20 +786,21 @@ function saveTxForm(){
   if(!assetName){showToast('⚠️ Обери картку');return}
   const cat=document.getElementById('tx-cat').value;
   const note=document.getElementById('tx-note').value.trim();
-  const arr=getTx();
+  showLoader(true);
   if(editingTxId){
-    const idx=arr.findIndex(t=>t.id===editingTxId);
-    if(idx>-1)arr[idx]={...arr[idx],type:txType,amount,category:cat,note,assetName};
-    saveTxData(arr);showToast('✓ Збережено');
+    await updateTxRow({id:editingTxId,type:txType,amount,category:cat,note,assetName});
+    showToast('✓ Збережено');
   }else{
-    arr.unshift({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date:new Date().toISOString()});
-    saveTxData(arr);showToast('✓ Операцію додано');
+    await addTxRow({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date:new Date().toISOString()});
+    showToast('✓ Операцію додано');
   }
-  closeModal('modal-tx');renderDashboard();
-  if(document.getElementById('tab-history').classList.contains('active'))renderHistory();
-  if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+  showLoader(false);
+  closeModal('modal-tx');
+  await renderDashboard();
+  if(document.getElementById('tab-history').classList.contains('active'))await renderHistory();
+  if(document.getElementById('tab-assets').classList.contains('active'))await renderAssets();
 }
-function saveTransfer(){
+async function saveTransfer(){
   const from=document.getElementById('tr-from').value;
   const to=document.getElementById('tr-to').value;
   const amt=parseFloat(document.getElementById('tr-amount').value);
@@ -757,12 +809,14 @@ function saveTransfer(){
   if(!from||!to){showToast('⚠️ Додай картки у «Активи»');return}
   if(from===to){showToast('⚠️ Обери різні картки');return}
   if(!amt||amt<=0){showToast('⚠️ Введи суму');return}
-  const txs=getTx();const now=Date.now();
-  txs.unshift({id:now,user:curUser,type:'transfer',transferOwn:true,amount:amt,from,to,note,date:new Date().toISOString()});
-  if(fee>0)txs.unshift({id:now+1,user:curUser,type:'expense',amount:fee,category:'🏦 Комісія',assetName:from,note:'Комісія '+from+'→'+to,date:new Date().toISOString()});
-  saveTxData(txs);closeModal('modal-tx');showToast('✓ Переказ збережено');
-  renderDashboard();
-  if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+  showLoader(true);
+  const now=Date.now();
+  await addTxRow({id:now,user:curUser,type:'transfer',transferOwn:true,amount:amt,from,to,note,date:new Date().toISOString()});
+  if(fee>0)await addTxRow({id:now+1,user:curUser,type:'expense',amount:fee,category:'🏦 Комісія',assetName:from,note:'Комісія '+from+'→'+to,date:new Date().toISOString()});
+  showLoader(false);
+  closeModal('modal-tx');showToast('✓ Переказ збережено');
+  await renderDashboard();
+  if(document.getElementById('tab-assets').classList.contains('active'))await renderAssets();
 }
 function resetTxForm(){
   editingTxId=null;
@@ -778,36 +832,32 @@ function resetTxForm(){
 }
 
 // ── OPEN / EDIT TX ──
-function openTxItem(id){
-  const t=getTx().find(x=>x.id===id);
+async function openTxItem(id){
+  const txs=await getTx();
+  const t=txs.find(x=>x.id===id);
   if(!t)return;
-  if(t.type==='transfer')openTransferView(id);
-  else editTx(id);
+  if(t.type==='transfer')openTransferView(t);
+  else editTx(t);
 }
-function editTx(id){
-  const t=getTx().find(x=>x.id===id);
+async function editTx(t){
   if(!t||t.type==='transfer')return;
-  editingTxId=id;
+  editingTxId=t.id;
   document.getElementById('modal-tx-title').textContent='Редагувати операцію';
   setType(t.type);
   document.getElementById('tx-amount').value=t.amount;
   document.getElementById('tx-note').value=t.note||'';
   populateCatSelect();
+  await populateAssetSelect(document.getElementById('tx-asset'),true);
   document.getElementById('tx-cat').value=t.category;
-  populateAssetSelect(document.getElementById('tx-asset'),true);
   document.getElementById('tx-asset').value=t.assetName||'';
   document.getElementById('tx-delete-btn').style.display='block';
   openModal('modal-tx');
 }
 function deleteTxFromModal(){
-  const id=editingTxId;
-  closeModal('modal-tx');
-  confirmDel(id);
+  const id=editingTxId;closeModal('modal-tx');confirmDel(id);
 }
-function openTransferView(id){
-  const t=getTx().find(x=>x.id===id);
-  if(!t)return;
-  viewingTransferId=id;
+function openTransferView(t){
+  viewingTransferId=t.id;
   const names=getNames();
   const name=t.user==='user1'?names.user1:names.user2;
   const wc=t.user==='user1'?'who1':'who2';
@@ -823,26 +873,29 @@ function openTransferView(id){
   openModal('modal-transfer-view');
 }
 function deleteTransferFromModal(){
-  const id=viewingTransferId;
-  closeModal('modal-transfer-view');
-  confirmDel(id);
+  const id=viewingTransferId;closeModal('modal-transfer-view');confirmDel(id);
 }
 
 // ── DELETE TX ──
 function confirmDel(id){
-  openConfirm('Видалити операцію?','Це не можна скасувати',()=>{
-    saveTxData(getTx().filter(t=>t.id!==id));
-    showToast('Видалено');renderHistory();
-    if(document.getElementById('tab-dashboard').classList.contains('active'))renderDashboard();
-    if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+  openConfirm('Видалити операцію?','Це не можна скасувати',async()=>{
+    showLoader(true);
+    await deleteTxRow(id);
+    showLoader(false);
+    showToast('Видалено');
+    await renderHistory();
+    if(document.getElementById('tab-dashboard').classList.contains('active'))await renderDashboard();
+    if(document.getElementById('tab-assets').classList.contains('active'))await renderAssets();
   });
 }
 
 // ── DASHBOARD ──
-function renderDashboard(){
+async function renderDashboard(){
   const d=new Date(viewYear,viewMonth,1);
   document.getElementById('month-lbl').textContent=d.toLocaleString('uk-UA',{month:'long',year:'numeric'});
-  const all=monthTxs(),names=getNames();
+  const allTx=await getTx();
+  const names=getNames();
+  const all=allTx.filter(t=>{const dt=new Date(t.date);return dt.getMonth()===viewMonth&&dt.getFullYear()===viewYear});
   const allExp=all.filter(t=>t.type==='expense');
   const partnerUser=curUser==='user1'?'user2':'user1';
   const myExp=allExp.filter(t=>t.user===curUser);
@@ -857,7 +910,7 @@ function renderDashboard(){
   const partnerName=curUser==='user1'?names.user2:names.user1;
 
   // ── MY BENTO ──
-  const myAssets=getAssets(curUser);
+  const myAssets=await getAssets(curUser);
 
   // asset expense per asset (this month)
   const assetExp={};
@@ -953,7 +1006,7 @@ function renderDashboard(){
       <div class="bar-val">${fmt(val)} ₴</div>
     </div>`).join(''):'<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Немає витрат цього місяця</div></div>';
 
-  const recAll=getTx().filter(t=>!(t.type==='income'&&t.user!==curUser));
+  const recAll=allTx.filter(t=>!(t.type==='income'&&t.user!==curUser));
   const showCount=recentExpanded?Math.min(recAll.length,30):5;
   const rec=recAll.slice(0,showCount);
   let html=rec.length?rec.map(t=>txHtml(t)).join(''):'<div class="empty"><div class="empty-icon">💸</div><div class="empty-text">Операцій ще немає</div></div>';
@@ -965,8 +1018,12 @@ function renderDashboard(){
 function toggleRecent(){recentExpanded=!recentExpanded;renderDashboard()}
 
 // ── CAT DETAIL ──
-function showCatDetail(cat){
-  const all=monthTxs().filter(t=>t.type==='expense'&&t.category===cat);
+async function showCatDetail(cat){
+  const allTx=await getTx();
+  const all=allTx.filter(t=>{
+    const dt=new Date(t.date);
+    return t.type==='expense'&&t.category===cat&&dt.getMonth()===viewMonth&&dt.getFullYear()===viewYear;
+  });
   const names=getNames();
   document.getElementById('cat-detail-title').textContent=cat;
   document.getElementById('cat-detail-body').innerHTML=all.length?all.map(t=>{
@@ -992,47 +1049,26 @@ function onDatePreset(){
 function getDateRange(){
   const preset=document.getElementById('f-date-preset').value;
   const now=new Date();
-  if(preset==='today'){
-    const s=new Date(now.getFullYear(),now.getMonth(),now.getDate());
-    const e=new Date(s);e.setDate(e.getDate()+1);
-    return{from:s,to:e};
-  }
-  if(preset==='week'){
-    const day=now.getDay()||7;
-    const s=new Date(now);s.setDate(now.getDate()-day+1);s.setHours(0,0,0,0);
-    const e=new Date(s);e.setDate(s.getDate()+7);
-    return{from:s,to:e};
-  }
-  if(preset==='month'){
-    return{from:new Date(now.getFullYear(),now.getMonth(),1),to:new Date(now.getFullYear(),now.getMonth()+1,1)};
-  }
-  if(preset==='last_month'){
-    const m=now.getMonth()-1;const y=m<0?now.getFullYear()-1:now.getFullYear();const mm=m<0?11:m;
-    return{from:new Date(y,mm,1),to:new Date(y,mm+1,1)};
-  }
-  if(preset==='custom'){
-    const fv=document.getElementById('f-date-from').value;
-    const tv=document.getElementById('f-date-to').value;
-    const from=fv?new Date(fv):null;
-    const to=tv?new Date(tv+'T23:59:59'):null;
-    return{from,to};
-  }
+  if(preset==='today'){const s=new Date(now.getFullYear(),now.getMonth(),now.getDate());const e=new Date(s);e.setDate(e.getDate()+1);return{from:s,to:e}}
+  if(preset==='week'){const day=now.getDay()||7;const s=new Date(now);s.setDate(now.getDate()-day+1);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(s.getDate()+7);return{from:s,to:e}}
+  if(preset==='month'){return{from:new Date(now.getFullYear(),now.getMonth(),1),to:new Date(now.getFullYear(),now.getMonth()+1,1)}}
+  if(preset==='last_month'){const m=now.getMonth()-1;const y=m<0?now.getFullYear()-1:now.getFullYear();const mm=m<0?11:m;return{from:new Date(y,mm,1),to:new Date(y,mm+1,1)}}
+  if(preset==='custom'){const fv=document.getElementById('f-date-from').value;const tv=document.getElementById('f-date-to').value;return{from:fv?new Date(fv):null,to:tv?new Date(tv+'T23:59:59'):null}}
   return{from:null,to:null};
 }
-function renderHistory(){
+async function renderHistory(){
   const who=document.getElementById('f-who').value;
   const type=document.getElementById('f-type').value;
   const cat=document.getElementById('f-cat').value;
   const{from,to}=getDateRange();
-
-  let arr=getTx().filter(t=>!(t.type==='income'&&t.user!==curUser));
+  const allTx=await getTx();
+  let arr=allTx.filter(t=>!(t.type==='income'&&t.user!==curUser));
   if(who!=='all')arr=arr.filter(t=>t.user===who);
   if(type!=='all')arr=arr.filter(t=>t.type===type);
   if(cat!=='all')arr=arr.filter(t=>t.category===cat);
   if(from)arr=arr.filter(t=>new Date(t.date)>=from);
   if(to)arr=arr.filter(t=>new Date(t.date)<=to);
-
-  const allCats=[...new Set(getTx().filter(t=>t.type!=='income'||t.user===curUser).map(t=>t.category).filter(Boolean))];
+  const allCats=[...new Set(allTx.filter(t=>t.type!=='income'||t.user===curUser).map(t=>t.category).filter(Boolean))];
   const fs=document.getElementById('f-cat'),cur=fs.value;
   fs.innerHTML='<option value="all">Всі категорії</option>'+allCats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
 
@@ -1066,38 +1102,39 @@ function txHtml(t){
 }
 
 // ── ASSETS ──
-function calcAssetBalance(assetName){
-  const assets=getAssets(curUser);
+async function calcAssetBalance(assets,allTx,assetName){
   const a=assets.find(x=>x.name===assetName);
   if(!a)return 0;
   const init=parseFloat(a.initialBalance)||0;
-  const txs=getTx().filter(t=>t.user===curUser&&t.assetName===assetName&&t.type!=='transfer');
+  const txs=allTx.filter(t=>t.user===curUser&&t.assetName===assetName&&t.type!=='transfer');
   const spent=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
   const earned=txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const transfers=getTx().filter(t=>t.user===curUser&&t.type==='transfer'&&t.transferOwn);
+  const transfers=allTx.filter(t=>t.user===curUser&&t.type==='transfer'&&t.transferOwn);
   const out=transfers.filter(t=>t.from===assetName).reduce((s,t)=>s+t.amount,0);
   const inn=transfers.filter(t=>t.to===assetName).reduce((s,t)=>s+t.amount,0);
   return init-spent+earned-out+inn;
 }
-function renderAssets(){
-  const list=getAssets(curUser);
-  document.getElementById('asset-list').innerHTML=list.length?list.map((a,i)=>{
-    const bal=calcAssetBalance(a.name);
+async function renderAssets(){
+  const list=await getAssets(curUser);
+  const allTx=await getTx();
+  const rows=await Promise.all(list.map(async(a)=>{
+    const bal=await calcAssetBalance(list,allTx,a.name);
     const balCls=bal>0?'pos':(bal<0?'neg':'zero');
     const typeEmoji=(a.type||'').match(/^\S+/)?.[0]||'💳';
     const iconHtml=a.iconUrl?`<img src="${a.iconUrl}" alt="icon" onerror="this.outerHTML='${typeEmoji}'">`:typeEmoji;
-    return `<div class="asset-item" onclick="openAssetModal(${i})">
+    return `<div class="asset-item" onclick="openAssetModal('${a.id}')">
       <div class="asset-icon">${iconHtml}</div>
       <div style="flex:1"><div class="asset-name">${a.name}</div><div class="asset-type">${stripEmoji(a.type)}</div></div>
       <div class="asset-balance ${balCls}">${fmt(bal)} ₴</div>
     </div>`;
-  }).join(''):'<div class="empty"><div class="empty-icon">💳</div><div class="empty-text">Додай свої картки та рахунки</div></div>';
+  }));
+  document.getElementById('asset-list').innerHTML=rows.length?rows.join(''):'<div class="empty"><div class="empty-icon">💳</div><div class="empty-text">Додай свої картки та рахунки</div></div>';
 }
-function openAssetModal(i){
-  editingAssetIndex=i;
+async function openAssetModal(assetId){
   const t=document.getElementById('modal-asset-title');
   const delBtn=document.getElementById('asset-delete-btn');
-  if(i===null){
+  if(assetId===null){
+    editingAssetIndex=null;
     t.textContent='Новий актив';
     document.getElementById('a-name').value='';
     document.getElementById('a-type').value='💳 Картка';
@@ -1105,7 +1142,10 @@ function openAssetModal(i){
     document.getElementById('a-icon').value='';
     delBtn.style.display='none';
   }else{
-    const a=getAssets(curUser)[i];
+    const list=await getAssets(curUser);
+    const a=list.find(x=>String(x.id)===String(assetId));
+    if(!a)return;
+    editingAssetIndex=a;
     t.textContent='Редагувати актив';
     document.getElementById('a-name').value=a.name;
     document.getElementById('a-type').value=a.type;
@@ -1115,35 +1155,26 @@ function openAssetModal(i){
   }
   openModal('modal-asset');
 }
-function saveAsset(){
+async function saveAsset(){
   const name=document.getElementById('a-name').value.trim();
   const type=document.getElementById('a-type').value;
   const initialBalance=parseFloat(document.getElementById('a-amount').value)||0;
   const iconUrl=document.getElementById('a-icon').value.trim();
   if(!name){showToast('⚠️ Введи назву');return}
-  const arr=getAssets(curUser);
-  if(editingAssetIndex!==null){
-    const old=arr[editingAssetIndex];
-    if(old.name!==name){
-      const txs=getTx();
-      txs.forEach(t=>{
-        if(t.user===curUser){
-          if(t.assetName===old.name)t.assetName=name;
-          if(t.type==='transfer'){if(t.from===old.name)t.from=name;if(t.to===old.name)t.to=name}
-        }
-      });
-      saveTxData(txs);
-    }
-    arr[editingAssetIndex]={name,type,initialBalance,iconUrl};
-  }else arr.push({name,type,initialBalance,iconUrl});
-  saveAssets(curUser,arr);
-  closeModal('modal-asset');renderAssets();showToast('✓ Збережено');
+  showLoader(true);
+  const isEdit=editingAssetIndex!==null;
+  await saveAssetRow(curUser,{...(isEdit?{id:editingAssetIndex.id}:{}),name,type,initialBalance,iconUrl},isEdit);
+  showLoader(false);
+  closeModal('modal-asset');await renderAssets();showToast('✓ Збережено');
 }
 function deleteAssetFromModal(){
-  const i=editingAssetIndex;
+  const a=editingAssetIndex;
   closeModal('modal-asset');
-  openConfirm('Видалити актив?','Операції залишаться, але без прив\u2019язки до картки',()=>{
-    const a=getAssets(curUser);a.splice(i,1);saveAssets(curUser,a);renderAssets();showToast('Видалено');
+  openConfirm('Видалити актив?','Операції залишаться, але без прив\u2019язки до картки',async()=>{
+    showLoader(true);
+    await deleteAssetRow(curUser,a.id);
+    showLoader(false);
+    await renderAssets();showToast('Видалено');
   });
 }
 
@@ -1260,10 +1291,9 @@ function showToast(msg){
 
 // INIT
 updateAuthScreen();
-// auto-restore session
-(function(){
+(async()=>{
   const saved=ls(K_SESSION);
-  if(saved==='user1'||saved==='user2') login(saved);
+  if(saved==='user1'||saved==='user2')await login(saved);
 })();
 </script>
 </body>
