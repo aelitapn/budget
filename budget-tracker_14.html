@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Спільний бюджет</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f1117;--surface:#181c27;--surface2:#1e2333;--border:#2a3045;
+  --text:#e8ecf4;--muted:#6b7591;--soft:#9ba4bf;
+  --accent:#6c63ff;--accent-s:rgba(108,99,255,.15);
+  --green:#34d07a;--green-s:rgba(52,208,122,.12);
+  --red:#ff5c7a;--red-s:rgba(255,92,122,.12);
+  --amber:#ffb547;--amber-s:rgba(255,181,71,.12);
+  --blue:#38bdf8;--blue-s:rgba(56,189,248,.12);
+  --u1:#6c63ff;--u2:#22b8cf;
+  --r:12px;--rs:8px;
+}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* AUTH */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:40px;width:100%;max-width:400px;text-align:center}
+.auth-logo{font-size:32px;margin-bottom:8px}
+.auth-title{font-size:22px;font-weight:700;margin-bottom:6px}
+.auth-sub{color:var(--muted);font-size:13px;margin-bottom:32px}
+.profile-btn{display:flex;align-items:center;gap:14px;padding:16px 20px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;transition:.15s;text-align:left;color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:600;width:100%;margin-bottom:12px}
+.profile-btn:hover{border-color:var(--accent);background:var(--accent-s)}
+.avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0;overflow:hidden}
+.av1{background:rgba(108,99,255,.25);color:var(--u1)}
+.av2{background:rgba(34,184,207,.22);color:var(--u2)}
+
+/* APP */
+#app{display:none;min-height:100vh}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.topbar-left{display:flex;align-items:center;gap:10px}
+.topbar-name{font-weight:700;font-size:15px}
+.btn-sm{padding:7px 14px;border-radius:var(--rs);border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;cursor:pointer;transition:.15s}
+.btn-sm:hover{color:var(--text);border-color:var(--soft)}
+
+.content{padding:24px;max-width:900px;margin:0 auto;padding-bottom:calc(120px + env(safe-area-inset-bottom,0px))}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);z-index:150;padding-bottom:env(safe-area-inset-bottom,0px)}
+.bottom-nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 4px 10px;border:none;background:none;color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:600;cursor:pointer;transition:.15s}
+.bottom-nav-item.active{color:var(--accent)}
+.bottom-nav-icon{font-size:19px;line-height:1}
+
+/* TOTAL CARD */
+.total-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 18px;margin-bottom:20px;text-align:center}
+.total-card .stat-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.total-card .stat-value{font-size:30px;font-weight:700}
+.c-green{color:var(--green)}.c-red{color:var(--red)}.c-accent{color:var(--accent)}.c-u1{color:var(--u1)}.c-u2{color:var(--u2)}
+
+/* PROFILE BENTO */
+.profile-block{margin-bottom:20px}
+.profile-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.profile-av{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0}
+.profile-name{font-size:18px;font-weight:700}
+.profile-sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+/* bento grid */
+.bento{display:grid;gap:10px}
+.bento-row{display:grid;gap:10px}
+.bento-2{grid-template-columns:1fr 1fr}
+.bento-3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:400px){.bento-3{grid-template-columns:1fr 1fr}}
+
+.bc{border-radius:16px;padding:16px;position:relative;overflow:hidden;min-height:80px}
+/* glass style */
+.bc-glass{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(8px)}
+.bc-accent{background:linear-gradient(135deg,rgba(108,99,255,.35),rgba(108,99,255,.12));border:1px solid rgba(108,99,255,.3)}
+.bc-green{background:linear-gradient(135deg,rgba(52,208,122,.25),rgba(52,208,122,.08));border:1px solid rgba(52,208,122,.25)}
+.bc-red{background:linear-gradient(135deg,rgba(255,92,122,.22),rgba(255,92,122,.06));border:1px solid rgba(255,92,122,.22)}
+.bc-u2{background:linear-gradient(135deg,rgba(34,184,207,.22),rgba(34,184,207,.06));border:1px solid rgba(34,184,207,.22)}
+.bc-total{background:linear-gradient(135deg,rgba(30,25,60,.9),rgba(20,18,40,.9));border:1px solid rgba(108,99,255,.25)}
+
+.bc-label{font-size:10px;font-weight:600;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+.bc-value{font-size:22px;font-weight:700;line-height:1.1}
+.bc-value.sm{font-size:17px}
+.bc-value.lg{font-size:28px}
+.bc-sub{font-size:11px;color:rgba(255,255,255,.4);margin-top:4px}
+.bc-icon{position:absolute;right:12px;top:12px;font-size:18px;opacity:.5}
+.bc-asset-name{font-size:12px;font-weight:600;color:rgba(255,255,255,.55);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* partner block */
+.partner-block{margin-bottom:20px}
+.partner-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.partner-name{font-size:14px;font-weight:700}
+.bento-partner{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* prow still used in transfer modal */
+.prow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;gap:10px}
+.prow:last-child{border-bottom:none}
+
+/* CHART */
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px;margin-bottom:20px}
+.chart-hd{margin-bottom:4px}
+.chart-title{font-size:14px;font-weight:700}
+.chart-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
+.bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px;cursor:pointer;border-radius:6px;padding:4px 2px;transition:.15s}
+.bar-row:hover{background:var(--surface2)}
+.bar-label{width:120px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;transition:width .4s}
+.bar-val{width:80px;text-align:right;font-weight:600;color:var(--soft);font-size:12px}
+
+/* MONTH NAV */
+.month-nav{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.month-label{font-size:16px;font-weight:700;flex:1;text-align:center}
+.btn-icon{background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--soft);font-size:16px;transition:.15s}
+.btn-icon:hover{color:var(--text);border-color:var(--soft)}
+
+/* TX LIST */
+.tx-list{display:flex;flex-direction:column;gap:8px}
+.tx-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:13px 16px;display:flex;align-items:center;gap:12px;transition:.15s;cursor:pointer}
+.tx-item:hover{border-color:var(--soft)}
+.tx-icon{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+.tx-info{flex:1;min-width:0}
+.tx-name{font-weight:600;font-size:14px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx-meta{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tx-amount{font-weight:700;font-size:15px;text-align:right;flex-shrink:0}
+.tx-who{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
+.who1{background:rgba(108,99,255,.18);color:var(--u1)}
+.who2{background:rgba(34,184,207,.18);color:var(--u2)}
+.badge-transfer{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:var(--amber-s);color:var(--amber)}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:flex-end;justify-content:center;padding:0}
+.modal-overlay.open{display:flex}
+@media(min-width:600px){.modal-overlay{align-items:center;padding:24px}}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:20px 20px 0 0;padding:28px;width:100%;max-width:520px;max-height:92vh;overflow-y:auto}
+@media(min-width:600px){.modal{border-radius:20px}}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.modal-title{font-size:17px;font-weight:700}
+.modal-close{background:var(--surface2);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:16px;transition:.15s}
+.modal-close:hover{color:var(--text)}
+
+/* FORM */
+.form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.form-label{font-size:11px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.5px}
+.form-input,.form-select{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;outline:none;transition:border-color .15s;width:100%}
+.form-input:focus,.form-select:focus{border-color:var(--accent)}
+.form-select option{background:var(--surface2)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:480px){.form-grid{grid-template-columns:1fr}}
+.calc-result{font-size:13px;color:var(--green);font-weight:600;margin-top:4px;min-height:18px}
+.field-hint{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4}
+
+/* TYPE BTNS */
+.type-row{display:flex;gap:8px;margin-bottom:14px}
+.type-btn{flex:1;padding:9px 6px;border-radius:var(--rs);border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap}
+.type-btn.t-expense{background:var(--red-s);border-color:var(--red);color:var(--red)}
+.type-btn.t-income{background:var(--green-s);border-color:var(--green);color:var(--green)}
+.type-btn.t-transfer{background:var(--amber-s);border-color:var(--amber);color:var(--amber)}
+
+/* BTN */
+.btn-primary{padding:11px 24px;background:var(--accent);color:#fff;border:none;border-radius:var(--rs);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;width:100%}
+.btn-primary:hover{opacity:.88}
+.btn-danger-full{padding:11px 24px;background:var(--red-s);color:var(--red);border:1px solid var(--red);border-radius:var(--rs);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;width:100%;transition:.15s;margin-top:10px}
+.btn-danger-full:hover{opacity:.85}
+.btn-showmore{width:100%;margin-top:8px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);color:var(--soft);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.btn-showmore:hover{color:var(--text);border-color:var(--soft)}
+
+/* FAB */
+.fab{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));right:20px;width:52px;height:52px;background:var(--accent);border:none;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(108,99,255,.4);transition:.2s;z-index:140}
+.fab:hover{transform:scale(1.07)}
+
+/* ASSETS */
+.asset-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:pointer;transition:.15s}
+.asset-item:hover{border-color:var(--soft)}
+.asset-icon{font-size:20px;flex-shrink:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center}
+.asset-icon img{width:26px;height:26px;border-radius:6px;object-fit:cover;display:block}
+.asset-name{font-weight:600}
+.asset-type{font-size:11px;color:var(--muted)}
+.asset-balance{font-weight:700;font-size:15px;margin-left:auto;white-space:nowrap}
+.asset-balance.pos{color:var(--green)}
+.asset-balance.neg{color:var(--red)}
+.asset-balance.zero{color:var(--muted)}
+
+/* CATEGORY ROWS */
+.cat-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.cat-row{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);padding:9px 10px;transition:.1s}
+.cat-row.dragging{opacity:.4}
+.drag-handle{font-size:17px;color:var(--muted);cursor:grab;touch-action:none;padding:4px 6px;flex-shrink:0;user-select:none}
+.cat-row-main{display:flex;align-items:center;gap:10px;flex:1;cursor:pointer;min-width:0}
+.cat-icon{font-size:18px;width:24px;text-align:center;flex-shrink:0}
+.cat-label{flex:1;font-size:14px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* EMOJI PICKER */
+.emoji-btn{width:48px;height:48px;font-size:22px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);cursor:pointer;flex-shrink:0;transition:.15s}
+.emoji-btn:hover{border-color:var(--accent)}
+.emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+@media(max-width:420px){.emoji-grid{grid-template-columns:repeat(5,1fr)}}
+.emoji-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);font-size:20px;padding:9px 0;cursor:pointer;transition:.15s}
+.emoji-item:hover{border-color:var(--accent);background:var(--accent-s)}
+
+/* FILTER */
+.filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-sel{padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;outline:none;cursor:pointer}
+
+/* MISC */
+.empty{text-align:center;padding:36px 20px;color:var(--muted)}
+.empty-icon{font-size:34px;margin-bottom:8px}
+.empty-text{font-size:13px}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:10px}
+.sec-title{font-size:16px;font-weight:700}
+.info-box{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--blue-s);border:1px solid var(--blue);border-radius:var(--rs);color:var(--blue);font-size:13px;font-weight:500;margin-bottom:18px}
+
+/* CONFIRM */
+.confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center;padding:24px}
+.confirm-overlay.open{display:flex}
+.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:340px;text-align:center}
+.confirm-title{font-size:16px;font-weight:700;margin-bottom:8px}
+.confirm-sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.confirm-btns{display:flex;gap:10px}
+.confirm-btns button{flex:1;padding:10px;border-radius:var(--rs);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:1px solid var(--border)}
+.btn-cancel-c{background:var(--surface2);color:var(--soft)}
+.btn-cancel-c:hover{color:var(--text)}
+.btn-del-c{background:var(--red-s);color:var(--red);border-color:var(--red)}
+.btn-del-c:hover{opacity:.85}
+
+/* TOAST */
+#toast{position:fixed;bottom:calc(90px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(60px);background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:10px 20px;font-size:13px;font-weight:600;z-index:999;transition:transform .25s;white-space:nowrap}
+#toast.show{transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">💰</div>
+    <div class="auth-title">Спільний бюджет</div>
+    <div class="auth-sub">Оберіть свій профіль</div>
+    <button class="profile-btn" onclick="login('user1')">
+      <div class="avatar av1" id="av1l">А</div>
+      <div><div id="btn-n1" style="font-size:15px;font-weight:700">Профіль 1</div><div style="font-size:12px;color:var(--muted);font-weight:400;margin-top:2px">Увійти</div></div>
+    </button>
+    <button class="profile-btn" onclick="login('user2')">
+      <div class="avatar av2" id="av2l">П</div>
+      <div><div id="btn-n2" style="font-size:15px;font-weight:700">Профіль 2</div><div style="font-size:12px;color:var(--muted);font-weight:400;margin-top:2px">Увійти</div></div>
+    </button>
+    <button class="btn-primary" style="margin-top:16px;background:var(--surface2);color:var(--soft);border:1px solid var(--border)" onclick="openModal('modal-names')">⚙️ Налаштувати імена</button>
+  </div>
+</div>
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="avatar" id="cur-av">А</div>
+      <div>
+        <div class="topbar-name" id="cur-name">Профіль 1</div>
+        <div style="font-size:11px;color:var(--muted)">Активний профіль</div>
+      </div>
+    </div>
+    <button class="btn-sm" onclick="logout()">Вийти</button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="month-nav">
+        <button class="btn-icon" onclick="shiftMonth(-1)">‹</button>
+        <div class="month-label" id="month-lbl"></div>
+        <button class="btn-icon" onclick="shiftMonth(1)">›</button>
+      </div>
+      <div id="profile-bento"></div>
+      <div id="partner-bento"></div>
+      <div class="chart-card">
+        <div class="chart-hd"><div class="chart-title">Спільні витрати за категоріями</div></div>
+        <div class="chart-sub">Витрати тебе і партнера разом · 👆 деталі · по кожному окремо — у «Операціях»</div>
+        <div id="cat-chart"></div>
+      </div>
+      <div class="sec-hd">
+        <div class="sec-title">Останні операції</div>
+      </div>
+      <div class="tx-list" id="recent-list"></div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="tab-panel" id="tab-history">
+      <div class="sec-hd"><div class="sec-title">Операції</div></div>
+      <div class="filter-row">
+        <select class="filter-sel" id="f-who" onchange="renderHistory()">
+          <option value="all">👥 Всі</option>
+          <option value="user1" id="f-n1">Профіль 1</option>
+          <option value="user2" id="f-n2">Профіль 2</option>
+        </select>
+        <select class="filter-sel" id="f-type" onchange="renderHistory()">
+          <option value="all">Всі типи</option>
+          <option value="expense">Витрати</option>
+          <option value="income">Доходи</option>
+        </select>
+        <select class="filter-sel" id="f-cat" onchange="renderHistory()">
+          <option value="all">Всі категорії</option>
+        </select>
+      </div>
+      <div class="filter-row" style="align-items:center">
+        <select class="filter-sel" id="f-date-preset" onchange="onDatePreset()">
+          <option value="all">📅 Весь час</option>
+          <option value="today">Сьогодні</option>
+          <option value="week">Цей тиждень</option>
+          <option value="month">Цей місяць</option>
+          <option value="last_month">Минулий місяць</option>
+          <option value="custom">Свій проміжок…</option>
+        </select>
+        <div id="f-date-custom" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="date" class="filter-sel" id="f-date-from" onchange="renderHistory()" style="flex:1;min-width:130px">
+          <span style="color:var(--muted);font-size:13px">—</span>
+          <input type="date" class="filter-sel" id="f-date-to" onchange="renderHistory()" style="flex:1;min-width:130px">
+        </div>
+      </div>
+      <div class="tx-list" id="history-list"></div>
+    </div>
+
+    <!-- ASSETS -->
+    <div class="tab-panel" id="tab-assets">
+      <div class="info-box">🔒 Ці активи бачиш тільки ти · Баланс рахується автоматично</div>
+      <div class="sec-hd">
+        <div class="sec-title">Мої активи</div>
+        <button class="btn-sm" onclick="openAssetModal(null)">+ Додати</button>
+      </div>
+      <div id="asset-list"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-panel" id="tab-settings">
+      <div class="sec-hd"><div class="sec-title">Категорії витрат</div><button class="btn-sm" onclick="openCatEdit('expense',null)">+ Додати</button></div>
+      <div class="cat-rows" id="cat-rows-exp"></div>
+
+      <div style="margin-top:28px">
+        <div class="sec-hd"><div class="sec-title">Категорії доходів</div><button class="btn-sm" onclick="openCatEdit('income',null)">+ Додати</button></div>
+        <div class="cat-rows" id="cat-rows-inc"></div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:16px">⠿ Затримай і тягни щоб змінити порядок · натисни на категорію щоб редагувати · кожен профіль налаштовує свої окремо</div>
+    </div>
+
+  </div>
+
+  <button class="fab" onclick="openModal('modal-tx')" title="Нова операція">＋</button>
+
+  <div class="bottom-nav">
+    <button class="bottom-nav-item active" onclick="goTab('dashboard')"><span class="bottom-nav-icon">📊</span><span>Огляд</span></button>
+    <button class="bottom-nav-item" onclick="goTab('history')"><span class="bottom-nav-icon">📋</span><span>Операції</span></button>
+    <button class="bottom-nav-item" onclick="goTab('assets')"><span class="bottom-nav-icon">💳</span><span>Активи</span></button>
+    <button class="bottom-nav-item" onclick="goTab('settings')"><span class="bottom-nav-icon">⚙️</span><span>Категорії</span></button>
+  </div>
+</div>
+
+<!-- MODAL: TX -->
+<div class="modal-overlay" id="modal-tx" onclick="bgClose(event,'modal-tx')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title" id="modal-tx-title">Нова операція</div>
+      <button class="modal-close" onclick="closeModal('modal-tx')">✕</button>
+    </div>
+    <div class="type-row">
+      <button class="type-btn t-expense" id="tb-expense" onclick="setType('expense')">− Витрата</button>
+      <button class="type-btn" id="tb-income" onclick="setType('income')">+ Дохід</button>
+      <button class="type-btn" id="tb-transfer" onclick="setType('transfer')">⇄ Переказ</button>
+    </div>
+
+    <div id="fields-main">
+      <div class="form-group">
+        <label class="form-label">Сума (₴) — можна писати 350+480+225</label>
+        <input class="form-input" id="tx-amount" type="text" placeholder="0 або 350+480+225" oninput="calcAmount()">
+        <div class="calc-result" id="calc-result"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Категорія</label>
+        <select class="form-select" id="tx-cat"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Картка <span style="color:var(--red)">*</span></label>
+        <select class="form-select" id="tx-asset"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Примітка (необов'язково)</label>
+        <input class="form-input" id="tx-note" placeholder="АТБ, вечеря, зарплата...">
+      </div>
+    </div>
+
+    <div id="fields-transfer" style="display:none">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Звідки <span style="color:var(--red)">*</span></label>
+          <select class="form-select" id="tr-from"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Куди <span style="color:var(--red)">*</span></label>
+          <select class="form-select" id="tr-to"></select>
+        </div>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Сума (₴)</label>
+          <input class="form-input" id="tr-amount" type="number" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Комісія (₴)</label>
+          <input class="form-input" id="tr-fee" type="number" placeholder="0" value="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Примітка</label>
+        <input class="form-input" id="tr-note" placeholder="Необов'язково">
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Сума переказу не є витратою. Комісія якщо є — піде у витрати.</div>
+    </div>
+
+    <button class="btn-primary" onclick="saveTxForm()">Зберегти</button>
+    <button class="btn-danger-full" id="tx-delete-btn" style="display:none" onclick="deleteTxFromModal()">Видалити операцію</button>
+  </div>
+</div>
+
+<!-- MODAL: ASSET -->
+<div class="modal-overlay" id="modal-asset" onclick="bgClose(event,'modal-asset')">
+  <div class="modal">
+    <div class="modal-hd">
+      <div class="modal-title" id="modal-asset-title">Новий актив</div>
+      <button class="modal-close" onclick="closeModal('modal-asset')">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">Назва</label><input class="form-input" id="a-name" placeholder="Monobank, Bitcoin..."></div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">Тип</label>
+        <select class="form-select" id="a-type">
+          <option>💳 Картка</option><option>🏦 Депозит</option><option>₿ Крипто</option><option>💵 Готівка</option><option>📈 Інвестиції</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">Початковий баланс (₴)</label><input class="form-input" id="a-amount" type="number" placeholder="0.00"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Іконка — URL картинки (необов'язково)</label>
+      <input class="form-input" id="a-icon" placeholder="https://...">
+      <div class="field-hint">Має бути пряме посилання на зображення (.png/.jpg/.svg), наприклад з Imgur. Посилання з Google-картинок чи Pinterest зазвичай не відкриваються напряму.</div>
+    </div>
+    <div class="field-hint" style="margin-bottom:16px">Баланс рахується автоматично: початковий ± витрати/доходи/перекази, прив'язані до цієї картки</div>
+    <button class="btn-primary" onclick="saveAsset()">Зберегти</button>
+    <button class="btn-danger-full" id="asset-delete-btn" style="display:none" onclick="deleteAssetFromModal()">Видалити актив</button>
+  </div>
+</div>
+
+<!-- MODAL: NAMES -->
+<div class="modal-overlay" id="modal-names" onclick="bgClose(event,'modal-names')">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title">Імена профілів</div><button class="modal-close" onclick="closeModal('modal-names')">✕</button></div>
+    <div class="form-group"><label class="form-label">Профіль 1 (фіолетовий)</label><input class="form-input" id="n1-inp" placeholder="Аеліта"></div>
+    <div class="form-group"><label class="form-label">Профіль 2 (бірюзовий)</label><input class="form-input" id="n2-inp" placeholder="Данило"></div>
+    <button class="btn-primary" onclick="saveNames()">Зберегти</button>
+  </div>
+</div>
+
+<!-- MODAL: CAT DETAIL -->
+<div class="modal-overlay" id="modal-cat-detail" onclick="bgClose(event,'modal-cat-detail')">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title" id="cat-detail-title"></div><button class="modal-close" onclick="closeModal('modal-cat-detail')">✕</button></div>
+    <div id="cat-detail-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: CAT EDIT -->
+<div class="modal-overlay" id="modal-cat-edit" onclick="bgClose(event,'modal-cat-edit')">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title" id="cat-edit-title">Нова категорія</div><button class="modal-close" onclick="closeModal('modal-cat-edit')">✕</button></div>
+    <div class="form-group">
+      <label class="form-label">Іконка та назва</label>
+      <div style="display:flex;gap:10px">
+        <button class="emoji-btn" id="cat-edit-emoji-btn" onclick="openModal('modal-emoji')">📦</button>
+        <input class="form-input" id="cat-edit-label" placeholder="Назва категорії" style="flex:1">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="saveCatEdit()">Зберегти</button>
+    <button class="btn-danger-full" id="cat-delete-btn" style="display:none" onclick="deleteCatFromModal()">Видалити категорію</button>
+  </div>
+</div>
+
+<!-- MODAL: EMOJI -->
+<div class="modal-overlay" id="modal-emoji" onclick="bgClose(event,'modal-emoji')">
+  <div class="modal">
+    <div class="modal-hd"><div class="modal-title">Обери іконку</div><button class="modal-close" onclick="closeModal('modal-emoji')">✕</button></div>
+    <div class="emoji-grid" id="emoji-grid"></div>
+  </div>
+</div>
+
+<!-- CONFIRM -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <div class="confirm-title" id="confirm-title-text">Видалити?</div>
+    <div class="confirm-sub" id="confirm-sub-text">Це не можна скасувати</div>
+    <div class="confirm-btns">
+      <button class="btn-cancel-c" onclick="closeConfirm()">Скасувати</button>
+      <button class="btn-del-c" id="confirm-del-btn">Видалити</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── KEYS ──
+const K_NAMES='bgt_names',K_TX='bgt_tx',K_ASSETS='bgt_assets_',K_CATS='bgt_cats_',K_CATS_INC='bgt_cats_inc_';
+const K_CATS_OLD='bgt_cats',K_CATS_INC_OLD='bgt_cats_inc';
+
+const DEFAULT_CATS=[
+ {icon:'🛒',label:'Продукти'},{icon:'🍽️',label:'Кафе і ресторани'},{icon:'🚗',label:'Транспорт'},
+ {icon:'🏠',label:'Житло і комуналка'},{icon:'👕',label:'Одяг і речі'},{icon:'💊',label:"Здоров'я"},
+ {icon:'🎮',label:'Розваги'},{icon:'📱',label:'Підписки'},{icon:'✈️',label:'Подорожі'},
+ {icon:'🐶',label:'Тварини'},{icon:'💼',label:'Робота і навчання'},{icon:'🏦',label:'Комісія'},{icon:'📦',label:'Інше'}
+];
+const DEFAULT_INC=[
+ {icon:'💰',label:'Зарплата'},{icon:'🤝',label:'Фріланс'},{icon:'🎁',label:'Подарунок'},
+ {icon:'📊',label:'Інвестиції'},{icon:'📦',label:'Інше'}
+];
+const EMOJI_LIST=['🛒','🍽️','🍔','🍕','☕','🧋','🍺','🍷','🚗','🚌','🚆','✈️','⛽','🚲','🏠','💡','🔥','💧','🧹','👕','👟','👜','💊','🏥','🧴','🎮','🎬','🎵','📚','🎓','🏨','🐶','🐱','🐾','💰','💵','💳','🏦','📊','📈','🎁','💼','📱','💻','🖥️','⚡','🧾','🛠️','🌳','🏋️','💅','✂️','🎨','🚿','🪴','👶','🎂','🍿','🧺','📦','❓','⭐','🔧'];
+
+// ── STORAGE ──
+function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}}
+function lss(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function getNames(){return ls(K_NAMES)||{user1:'Профіль 1',user2:'Профіль 2'}}
+function getTx(){return ls(K_TX)||[]}
+function saveTxData(a){lss(K_TX,a)}
+function getAssets(u){return ls(K_ASSETS+u)||[]}
+function saveAssets(u,a){lss(K_ASSETS+u,a)}
+
+function parseCatString(s){
+  const m=String(s||'').match(/^(\S+)\s+(.*)$/);
+  return m?{icon:m[1],label:m[2]}:{icon:'📦',label:String(s||'')};
+}
+function catToString(c){return (c.icon?c.icon+' ':'')+c.label}
+function stripEmoji(s){return String(s||'').replace(/^\S+\s*/,'')}
+function getCatsFor(user,type){
+  const key=(type==='income'?K_CATS_INC:K_CATS)+user;
+  let v=ls(key);
+  if(v)return v;
+  const oldKey=type==='income'?K_CATS_INC_OLD:K_CATS_OLD;
+  const old=ls(oldKey);
+  if(old&&Array.isArray(old)&&old.length){
+    const migrated=old.map(parseCatString);
+    lss(key,migrated);return migrated;
+  }
+  const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
+  lss(key,def);return def;
+}
+function saveCatsFor(user,type,arr){lss((type==='income'?K_CATS_INC:K_CATS)+user,arr)}
+
+// ── STATE ──
+let curUser=null,txType='expense';
+let viewMonth=new Date().getMonth(),viewYear=new Date().getFullYear();
+let editingTxId=null,editingAssetIndex=null,viewingTransferId=null;
+let catEditType=null,catEditIndex=null,catEditIcon='📦';
+let confirmCallback=null,recentExpanded=false;
+
+// ── AUTH ──
+const K_SESSION='bgt_session';
+
+function login(u){
+  curUser=u;
+  lss(K_SESSION,u);
+  const n=getNames();
+  const name=u==='user1'?n.user1:n.user2;
+  const av=document.getElementById('cur-av');
+  av.textContent=name[0].toUpperCase();
+  av.className='avatar '+(u==='user1'?'av1':'av2');
+  document.getElementById('cur-name').textContent=name;
+  document.getElementById('auth-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  updateFilterNames();
+  goTab('dashboard');
+}
+function logout(){
+  curUser=null;
+  localStorage.removeItem(K_SESSION);
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+}
+function updateAuthScreen(){
+  const n=getNames();
+  document.getElementById('btn-n1').textContent=n.user1;
+  document.getElementById('btn-n2').textContent=n.user2;
+  document.getElementById('av1l').textContent=n.user1[0].toUpperCase();
+  document.getElementById('av2l').textContent=n.user2[0].toUpperCase();
+}
+function updateFilterNames(){const n=getNames();document.getElementById('f-n1').textContent=n.user1;document.getElementById('f-n2').textContent=n.user2}
+function saveNames(){
+  const n1=document.getElementById('n1-inp').value.trim()||'Профіль 1';
+  const n2=document.getElementById('n2-inp').value.trim()||'Профіль 2';
+  lss(K_NAMES,{user1:n1,user2:n2});
+  updateAuthScreen();updateFilterNames();
+  closeModal('modal-names');
+  showToast('✓ Збережено');
+}
+
+// ── MODALS ──
+function openModal(id){
+  if(id==='modal-tx'){
+    if(txType==='transfer'){
+      populateAssetSelect(document.getElementById('tr-from'),false);
+      populateAssetSelect(document.getElementById('tr-to'),false);
+    } else {
+      populateCatSelect();
+      populateAssetSelect(document.getElementById('tx-asset'),false);
+    }
+  }
+  if(id==='modal-names'){
+    const n=getNames();
+    document.getElementById('n1-inp').value=n.user1;
+    document.getElementById('n2-inp').value=n.user2;
+  }
+  if(id==='modal-emoji')renderEmojiGrid();
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  if(id==='modal-tx')resetTxForm();
+}
+function bgClose(e,id){if(e.target.id===id)closeModal(id)}
+
+// ── CONFIRM ──
+function openConfirm(title,sub,cb){
+  document.getElementById('confirm-title-text').textContent=title;
+  document.getElementById('confirm-sub-text').textContent=sub;
+  confirmCallback=cb;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm(){document.getElementById('confirm-overlay').classList.remove('open');confirmCallback=null}
+document.getElementById('confirm-del-btn').addEventListener('click',()=>{const cb=confirmCallback;closeConfirm();if(cb)cb()});
+
+// ── TABS ──
+function goTab(t){
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  const idx={dashboard:0,history:1,assets:2,settings:3};
+  document.querySelectorAll('.bottom-nav-item')[idx[t]].classList.add('active');
+  if(t==='dashboard')renderDashboard();
+  if(t==='history')renderHistory();
+  if(t==='assets')renderAssets();
+  if(t==='settings')renderSettings();
+}
+
+// ── MONTH ──
+function shiftMonth(d){
+  viewMonth+=d;
+  if(viewMonth>11){viewMonth=0;viewYear++}
+  if(viewMonth<0){viewMonth=11;viewYear--}
+  renderDashboard();
+}
+function monthTxs(){return getTx().filter(t=>{const d=new Date(t.date);return d.getMonth()===viewMonth&&d.getFullYear()===viewYear})}
+
+// ── TYPE TOGGLE ──
+function setType(t){
+  txType=t;
+  ['expense','income','transfer'].forEach(x=>{
+    const b=document.getElementById('tb-'+x);
+    if(b) b.className='type-btn'+(t===x?' t-'+x:'');
+  });
+  document.getElementById('fields-main').style.display=t==='transfer'?'none':'block';
+  document.getElementById('fields-transfer').style.display=t==='transfer'?'block':'none';
+  if(t==='transfer'){
+    populateAssetSelect(document.getElementById('tr-from'),false);
+    populateAssetSelect(document.getElementById('tr-to'),false);
+  } else {
+    populateCatSelect();
+    populateAssetSelect(document.getElementById('tx-asset'),false);
+  }
+}
+
+// ── CALC ──
+function calcAmount(){
+  const raw=document.getElementById('tx-amount').value.replace(/\s/g,'');
+  const el=document.getElementById('calc-result');
+  if(raw.includes('+')||raw.includes('-')){
+    try{
+      if(!/^[\d.+\-]+$/.test(raw)){el.textContent='';return}
+      const r=evalExpr(raw);
+      el.textContent=!isNaN(r)?'= '+fmt(r)+' ₴':'';
+    }catch{el.textContent=''}
+  }else el.textContent='';
+}
+function evalExpr(s){return s.split('+').map(p=>p.split('-').reduce((a,b,i)=>i===0?parseFloat(b)||0:a-(parseFloat(b)||0),0)).reduce((a,b)=>a+b,0)}
+function resolveAmount(raw){
+  const s=raw.replace(/\s/g,'');
+  if(!s||!/^[\d.+\-]+$/.test(s))return null;
+  try{const r=evalExpr(s);return isNaN(r)||r<=0?null:r}catch{return null}
+}
+
+// ── SELECTS ──
+function populateCatSelect(){
+  const s=document.getElementById('tx-cat');
+  const cats=getCatsFor(curUser,txType==='income'?'income':'expense');
+  s.innerHTML=cats.map(c=>{const v=catToString(c);return `<option value="${v}">${v}</option>`}).join('');
+}
+function populateAssetSelect(selectEl,_unused){
+  const assets=getAssets(curUser);
+  if(!assets.length){
+    selectEl.innerHTML='<option value="" disabled selected>Немає карток — додай у «Активи»</option>';
+    return;
+  }
+  selectEl.innerHTML=assets.map(a=>{const ic=(a.type||'').match(/^\S+/)?.[0]||'💳';return `<option value="${a.name.replace(/"/g,'')}">${ic} ${a.name}</option>`}).join('');
+}
+
+// ── SAVE TX (add + edit) ──
+function saveTxForm(){
+  if(txType==='transfer'){saveTransfer();return}
+  const raw=document.getElementById('tx-amount').value;
+  const amount=resolveAmount(raw);
+  if(!amount){showToast('⚠️ Введи суму');return}
+  const assetName=document.getElementById('tx-asset').value||null;
+  if(!assetName){showToast('⚠️ Обери картку');return}
+  const cat=document.getElementById('tx-cat').value;
+  const note=document.getElementById('tx-note').value.trim();
+  const arr=getTx();
+  if(editingTxId){
+    const idx=arr.findIndex(t=>t.id===editingTxId);
+    if(idx>-1)arr[idx]={...arr[idx],type:txType,amount,category:cat,note,assetName};
+    saveTxData(arr);showToast('✓ Збережено');
+  }else{
+    arr.unshift({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date:new Date().toISOString()});
+    saveTxData(arr);showToast('✓ Операцію додано');
+  }
+  closeModal('modal-tx');renderDashboard();
+  if(document.getElementById('tab-history').classList.contains('active'))renderHistory();
+  if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+}
+function saveTransfer(){
+  const from=document.getElementById('tr-from').value;
+  const to=document.getElementById('tr-to').value;
+  const amt=parseFloat(document.getElementById('tr-amount').value);
+  const fee=parseFloat(document.getElementById('tr-fee').value)||0;
+  const note=document.getElementById('tr-note').value.trim();
+  if(!from||!to){showToast('⚠️ Додай картки у «Активи»');return}
+  if(from===to){showToast('⚠️ Обери різні картки');return}
+  if(!amt||amt<=0){showToast('⚠️ Введи суму');return}
+  const txs=getTx();const now=Date.now();
+  txs.unshift({id:now,user:curUser,type:'transfer',transferOwn:true,amount:amt,from,to,note,date:new Date().toISOString()});
+  if(fee>0)txs.unshift({id:now+1,user:curUser,type:'expense',amount:fee,category:'🏦 Комісія',assetName:from,note:'Комісія '+from+'→'+to,date:new Date().toISOString()});
+  saveTxData(txs);closeModal('modal-tx');showToast('✓ Переказ збережено');
+  renderDashboard();
+  if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+}
+function resetTxForm(){
+  editingTxId=null;
+  document.getElementById('modal-tx-title').textContent='Нова операція';
+  document.getElementById('tx-delete-btn').style.display='none';
+  document.getElementById('tx-amount').value='';
+  document.getElementById('tx-note').value='';
+  document.getElementById('calc-result').textContent='';
+  document.getElementById('tr-amount').value='';
+  document.getElementById('tr-fee').value='0';
+  document.getElementById('tr-note').value='';
+  setType('expense');
+}
+
+// ── OPEN / EDIT TX ──
+function openTxItem(id){
+  const t=getTx().find(x=>x.id===id);
+  if(!t)return;
+  if(t.type==='transfer')openTransferView(id);
+  else editTx(id);
+}
+function editTx(id){
+  const t=getTx().find(x=>x.id===id);
+  if(!t||t.type==='transfer')return;
+  editingTxId=id;
+  document.getElementById('modal-tx-title').textContent='Редагувати операцію';
+  setType(t.type);
+  document.getElementById('tx-amount').value=t.amount;
+  document.getElementById('tx-note').value=t.note||'';
+  populateCatSelect();
+  document.getElementById('tx-cat').value=t.category;
+  populateAssetSelect(document.getElementById('tx-asset'),true);
+  document.getElementById('tx-asset').value=t.assetName||'';
+  document.getElementById('tx-delete-btn').style.display='block';
+  openModal('modal-tx');
+}
+function deleteTxFromModal(){
+  const id=editingTxId;
+  closeModal('modal-tx');
+  confirmDel(id);
+}
+function openTransferView(id){
+  const t=getTx().find(x=>x.id===id);
+  if(!t)return;
+  viewingTransferId=id;
+  const names=getNames();
+  const name=t.user==='user1'?names.user1:names.user2;
+  const wc=t.user==='user1'?'who1':'who2';
+  const ds=new Date(t.date).toLocaleString('uk-UA',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('transfer-view-body').innerHTML=`
+    <div class="prow"><span>Звідки</span><span style="font-weight:600">${t.from}</span></div>
+    <div class="prow"><span>Куди</span><span style="font-weight:600">${t.to}</span></div>
+    <div class="prow"><span>Сума</span><span style="font-weight:700;color:var(--amber)">${fmt(t.amount)} ₴</span></div>
+    <div class="prow"><span>Дата</span><span>${ds}</span></div>
+    <div class="prow"><span>Хто вніс</span><span class="tx-who ${wc}">${name}</span></div>
+    ${t.note?`<div class="prow"><span>Примітка</span><span>${t.note}</span></div>`:''}
+  `;
+  openModal('modal-transfer-view');
+}
+function deleteTransferFromModal(){
+  const id=viewingTransferId;
+  closeModal('modal-transfer-view');
+  confirmDel(id);
+}
+
+// ── DELETE TX ──
+function confirmDel(id){
+  openConfirm('Видалити операцію?','Це не можна скасувати',()=>{
+    saveTxData(getTx().filter(t=>t.id!==id));
+    showToast('Видалено');renderHistory();
+    if(document.getElementById('tab-dashboard').classList.contains('active'))renderDashboard();
+    if(document.getElementById('tab-assets').classList.contains('active'))renderAssets();
+  });
+}
+
+// ── DASHBOARD ──
+function renderDashboard(){
+  const d=new Date(viewYear,viewMonth,1);
+  document.getElementById('month-lbl').textContent=d.toLocaleString('uk-UA',{month:'long',year:'numeric'});
+  const all=monthTxs(),names=getNames();
+  const allExp=all.filter(t=>t.type==='expense');
+  const partnerUser=curUser==='user1'?'user2':'user1';
+  const myExp=allExp.filter(t=>t.user===curUser);
+  const partnerExp=allExp.filter(t=>t.user===partnerUser);
+  const myInc=all.filter(t=>t.type==='income'&&t.user===curUser);
+  const myExpTotal=myExp.reduce((s,t)=>s+t.amount,0);
+  const partnerExpTotal=partnerExp.reduce((s,t)=>s+t.amount,0);
+  const totalExp=myExpTotal+partnerExpTotal;
+  const myIncTotal=myInc.reduce((s,t)=>s+t.amount,0);
+  const myBalance=myIncTotal-myExpTotal;
+  const myName=curUser==='user1'?names.user1:names.user2;
+  const partnerName=curUser==='user1'?names.user2:names.user1;
+
+  // ── MY BENTO ──
+  const myAssets=getAssets(curUser);
+
+  // asset expense per asset (this month)
+  const assetExp={};
+  myExp.filter(t=>t.assetName).forEach(t=>{assetExp[t.assetName]=(assetExp[t.assetName]||0)+t.amount});
+
+  // build asset balance mini-cards
+  function assetBentoCards(){
+    if(!myAssets.length) return `<div class="bc bc-glass" style="grid-column:1/-1"><div class="bc-label">Активи</div><div class="bc-sub" style="color:var(--muted)">Додай картки у вкладці «Активи»</div></div>`;
+    return myAssets.map(a=>{
+      const bal=calcAssetBalance(a.name);
+      const spent=assetExp[a.name]||0;
+      const cls=bal>=0?'bc-glass':'bc-red';
+      const typeEmoji=(a.type||'').match(/^\S+/)?.[0]||'💳';
+      return `<div class="bc ${cls}">
+        <div class="bc-icon">${typeEmoji}</div>
+        <div class="bc-asset-name">${a.name}</div>
+        <div class="bc-value sm" style="color:${bal>=0?'var(--green)':'var(--red)'}">${fmt(bal)} ₴</div>
+        ${spent>0?`<div class="bc-sub">−${fmt(spent)} ₴ цього міс.</div>`:'<div class="bc-sub" style="opacity:.4">без витрат</div>'}
+      </div>`;
+    }).join('');
+  }
+
+  const assetCols=myAssets.length<=2?'bento-2':'bento-3';
+
+  document.getElementById('profile-bento').innerHTML=`
+    <div class="profile-block">
+      <div class="profile-header">
+        <div class="profile-av ${curUser==='user1'?'av1':'av2'}">${myName[0].toUpperCase()}</div>
+        <div>
+          <div class="profile-name">${myName}</div>
+          <div class="profile-sub">${new Date(viewYear,viewMonth,1).toLocaleString('uk-UA',{month:'long',year:'numeric'})}</div>
+        </div>
+      </div>
+      <div class="bento">
+        <!-- row 1: total exp + my income -->
+        <div class="bento-row bento-2">
+          <div class="bc bc-total">
+            <div class="bc-label">Мої витрати</div>
+            <div class="bc-value c-red">−${fmt(myExpTotal)} ₴</div>
+            <div class="bc-sub">за місяць</div>
+          </div>
+          <div class="bc bc-green">
+            <div class="bc-icon">💰</div>
+            <div class="bc-label">Мої доходи</div>
+            <div class="bc-value" style="color:var(--green)">+${fmt(myIncTotal)} ₴</div>
+            <div class="bc-sub" style="color:rgba(52,208,122,.6)">${myBalance>=0?'профіцит':'дефіцит'} ${fmt(Math.abs(myBalance))} ₴</div>
+          </div>
+        </div>
+        <!-- row 2: assets -->
+        <div class="bento-row ${assetCols}">
+          ${assetBentoCards()}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // ── PARTNER BENTO ──
+  const partnerName2=partnerName;
+  const partnerExpByCat={};partnerExp.forEach(t=>{partnerExpByCat[t.category]=(partnerExpByCat[t.category]||0)+t.amount});
+  const topPartner=Object.entries(partnerExpByCat).sort((a,b)=>b[1]-a[1]).slice(0,2);
+
+  document.getElementById('partner-bento').innerHTML=`
+    <div class="partner-block">
+      <div class="partner-hd">
+        <div class="avatar ${partnerUser==='user1'?'av1':'av2'}" style="width:32px;height:32px;font-size:13px">${partnerName2[0].toUpperCase()}</div>
+        <div class="partner-name">${partnerName2}</div>
+      </div>
+      <div class="bento-partner">
+        <div class="bc ${partnerUser==='user1'?'bc-accent':'bc-u2'}">
+          <div class="bc-label">Витрати</div>
+          <div class="bc-value sm" style="color:var(--red)">−${fmt(partnerExpTotal)} ₴</div>
+          <div class="bc-sub">за місяць</div>
+        </div>
+        <div class="bc bc-total" style="background:linear-gradient(135deg,rgba(255,92,122,.15),rgba(255,92,122,.04));border-color:rgba(255,92,122,.18)">
+          <div class="bc-label">Разом витрачено</div>
+          <div class="bc-value sm c-red">−${fmt(myExpTotal+partnerExpTotal)} ₴</div>
+          <div class="bc-sub">обидва</div>
+        </div>
+        ${topPartner.map(([c,v])=>`<div class="bc bc-glass"><div class="bc-asset-name">${c}</div><div class="bc-value sm" style="color:var(--red)">−${fmt(v)} ₴</div></div>`).join('')}
+      </div>
+    </div>
+  `;
+
+  const catTotals={};allExp.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount});
+  const sorted=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const max=sorted[0]?.[1]||1;
+  const colors=['#6c63ff','#22b8cf','#34d07a','#ffb547','#ff5c7a','#a78bfa','#fb923c'];
+  const chart=document.getElementById('cat-chart');
+  chart.innerHTML=sorted.length?sorted.map(([cat,val],i)=>`
+    <div class="bar-row" onclick="showCatDetail('${cat.replace(/'/g,"\\'")}')">
+      <div class="bar-label">${cat}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
+      <div class="bar-val">${fmt(val)} ₴</div>
+    </div>`).join(''):'<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Немає витрат цього місяця</div></div>';
+
+  const recAll=getTx().filter(t=>!(t.type==='income'&&t.user!==curUser));
+  const showCount=recentExpanded?Math.min(recAll.length,30):5;
+  const rec=recAll.slice(0,showCount);
+  let html=rec.length?rec.map(t=>txHtml(t)).join(''):'<div class="empty"><div class="empty-icon">💸</div><div class="empty-text">Операцій ще немає</div></div>';
+  if(recAll.length>5){
+    html+=`<button class="btn-showmore" onclick="toggleRecent()">${recentExpanded?'Згорнути ▲':'Показати ще '+(Math.min(recAll.length,30)-5)+' ▾'}</button>`;
+  }
+  document.getElementById('recent-list').innerHTML=html;
+}
+function toggleRecent(){recentExpanded=!recentExpanded;renderDashboard()}
+
+// ── CAT DETAIL ──
+function showCatDetail(cat){
+  const all=monthTxs().filter(t=>t.type==='expense'&&t.category===cat);
+  const names=getNames();
+  document.getElementById('cat-detail-title').textContent=cat;
+  document.getElementById('cat-detail-body').innerHTML=all.length?all.map(t=>{
+    const name=t.user==='user1'?names.user1:names.user2;
+    const wc=t.user==='user1'?'who1':'who2';
+    const ds=new Date(t.date).toLocaleString('uk-UA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div><div style="font-weight:600;font-size:14px">${t.note||cat}</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:2px">${ds} · <span class="tx-who ${wc}">${name[0]}</span></div></div>
+      <div style="font-weight:700;color:var(--red)">−${fmt(t.amount)} ₴</div>
+    </div>`;
+  }).join(''):'<div class="empty"><div class="empty-text">Немає операцій</div></div>';
+  openModal('modal-cat-detail');
+}
+
+// ── HISTORY ──
+function onDatePreset(){
+  const preset=document.getElementById('f-date-preset').value;
+  const customRow=document.getElementById('f-date-custom');
+  customRow.style.display=preset==='custom'?'flex':'none';
+  if(preset!=='custom')renderHistory();
+}
+function getDateRange(){
+  const preset=document.getElementById('f-date-preset').value;
+  const now=new Date();
+  if(preset==='today'){
+    const s=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const e=new Date(s);e.setDate(e.getDate()+1);
+    return{from:s,to:e};
+  }
+  if(preset==='week'){
+    const day=now.getDay()||7;
+    const s=new Date(now);s.setDate(now.getDate()-day+1);s.setHours(0,0,0,0);
+    const e=new Date(s);e.setDate(s.getDate()+7);
+    return{from:s,to:e};
+  }
+  if(preset==='month'){
+    return{from:new Date(now.getFullYear(),now.getMonth(),1),to:new Date(now.getFullYear(),now.getMonth()+1,1)};
+  }
+  if(preset==='last_month'){
+    const m=now.getMonth()-1;const y=m<0?now.getFullYear()-1:now.getFullYear();const mm=m<0?11:m;
+    return{from:new Date(y,mm,1),to:new Date(y,mm+1,1)};
+  }
+  if(preset==='custom'){
+    const fv=document.getElementById('f-date-from').value;
+    const tv=document.getElementById('f-date-to').value;
+    const from=fv?new Date(fv):null;
+    const to=tv?new Date(tv+'T23:59:59'):null;
+    return{from,to};
+  }
+  return{from:null,to:null};
+}
+function renderHistory(){
+  const who=document.getElementById('f-who').value;
+  const type=document.getElementById('f-type').value;
+  const cat=document.getElementById('f-cat').value;
+  const{from,to}=getDateRange();
+
+  let arr=getTx().filter(t=>!(t.type==='income'&&t.user!==curUser));
+  if(who!=='all')arr=arr.filter(t=>t.user===who);
+  if(type!=='all')arr=arr.filter(t=>t.type===type);
+  if(cat!=='all')arr=arr.filter(t=>t.category===cat);
+  if(from)arr=arr.filter(t=>new Date(t.date)>=from);
+  if(to)arr=arr.filter(t=>new Date(t.date)<=to);
+
+  const allCats=[...new Set(getTx().filter(t=>t.type!=='income'||t.user===curUser).map(t=>t.category).filter(Boolean))];
+  const fs=document.getElementById('f-cat'),cur=fs.value;
+  fs.innerHTML='<option value="all">Всі категорії</option>'+allCats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+
+  document.getElementById('history-list').innerHTML=arr.length?arr.map(t=>txHtml(t)).join(''):
+    '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Нічого не знайдено</div></div>';
+}
+
+function txHtml(t){
+  const names=getNames();
+  const name=t.user==='user1'?names.user1:names.user2;
+  const wc=t.user==='user1'?'who1':'who2';
+  const ds=new Date(t.date).toLocaleString('uk-UA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  if(t.type==='transfer'){
+    return `<div class="tx-item" onclick="openTxItem(${t.id})">
+      <div class="tx-icon" style="background:var(--amber-s)">⇄</div>
+      <div class="tx-info"><div class="tx-name">${t.from} → ${t.to}</div>
+      <div class="tx-meta"><span>${ds}</span><span class="tx-who ${wc}">${name[0]}</span><span class="badge-transfer">переказ</span></div></div>
+      <div class="tx-amount" style="color:var(--amber)">${fmt(t.amount)} ₴</div></div>`;
+  }
+  const c=parseCatString(t.category);
+  const bg=t.type==='income'?'var(--green-s)':'var(--red-s)';
+  const sign=t.type==='income'?'+':'−';
+  const ac=t.type==='income'?'c-green':'c-red';
+  const assetTag=t.assetName?`<span>· ${t.assetName}</span>`:'';
+  const catTag=t.note?`<span>${c.label}</span>`:'';
+  return `<div class="tx-item" onclick="openTxItem(${t.id})">
+    <div class="tx-icon" style="background:${bg}">${c.icon||'📦'}</div>
+    <div class="tx-info"><div class="tx-name">${t.note||c.label||'Операція'}</div>
+    <div class="tx-meta">${catTag}<span>${ds}</span>${assetTag}<span class="tx-who ${wc}">${name[0]}</span></div></div>
+    <div class="tx-amount ${ac}">${sign}${fmt(t.amount)} ₴</div></div>`;
+}
+
+// ── ASSETS ──
+function calcAssetBalance(assetName){
+  const assets=getAssets(curUser);
+  const a=assets.find(x=>x.name===assetName);
+  if(!a)return 0;
+  const init=parseFloat(a.initialBalance)||0;
+  const txs=getTx().filter(t=>t.user===curUser&&t.assetName===assetName&&t.type!=='transfer');
+  const spent=txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const earned=txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const transfers=getTx().filter(t=>t.user===curUser&&t.type==='transfer'&&t.transferOwn);
+  const out=transfers.filter(t=>t.from===assetName).reduce((s,t)=>s+t.amount,0);
+  const inn=transfers.filter(t=>t.to===assetName).reduce((s,t)=>s+t.amount,0);
+  return init-spent+earned-out+inn;
+}
+function renderAssets(){
+  const list=getAssets(curUser);
+  document.getElementById('asset-list').innerHTML=list.length?list.map((a,i)=>{
+    const bal=calcAssetBalance(a.name);
+    const balCls=bal>0?'pos':(bal<0?'neg':'zero');
+    const typeEmoji=(a.type||'').match(/^\S+/)?.[0]||'💳';
+    const iconHtml=a.iconUrl?`<img src="${a.iconUrl}" alt="icon" onerror="this.outerHTML='${typeEmoji}'">`:typeEmoji;
+    return `<div class="asset-item" onclick="openAssetModal(${i})">
+      <div class="asset-icon">${iconHtml}</div>
+      <div style="flex:1"><div class="asset-name">${a.name}</div><div class="asset-type">${stripEmoji(a.type)}</div></div>
+      <div class="asset-balance ${balCls}">${fmt(bal)} ₴</div>
+    </div>`;
+  }).join(''):'<div class="empty"><div class="empty-icon">💳</div><div class="empty-text">Додай свої картки та рахунки</div></div>';
+}
+function openAssetModal(i){
+  editingAssetIndex=i;
+  const t=document.getElementById('modal-asset-title');
+  const delBtn=document.getElementById('asset-delete-btn');
+  if(i===null){
+    t.textContent='Новий актив';
+    document.getElementById('a-name').value='';
+    document.getElementById('a-type').value='💳 Картка';
+    document.getElementById('a-amount').value='';
+    document.getElementById('a-icon').value='';
+    delBtn.style.display='none';
+  }else{
+    const a=getAssets(curUser)[i];
+    t.textContent='Редагувати актив';
+    document.getElementById('a-name').value=a.name;
+    document.getElementById('a-type').value=a.type;
+    document.getElementById('a-amount').value=a.initialBalance||0;
+    document.getElementById('a-icon').value=a.iconUrl||'';
+    delBtn.style.display='block';
+  }
+  openModal('modal-asset');
+}
+function saveAsset(){
+  const name=document.getElementById('a-name').value.trim();
+  const type=document.getElementById('a-type').value;
+  const initialBalance=parseFloat(document.getElementById('a-amount').value)||0;
+  const iconUrl=document.getElementById('a-icon').value.trim();
+  if(!name){showToast('⚠️ Введи назву');return}
+  const arr=getAssets(curUser);
+  if(editingAssetIndex!==null){
+    const old=arr[editingAssetIndex];
+    if(old.name!==name){
+      const txs=getTx();
+      txs.forEach(t=>{
+        if(t.user===curUser){
+          if(t.assetName===old.name)t.assetName=name;
+          if(t.type==='transfer'){if(t.from===old.name)t.from=name;if(t.to===old.name)t.to=name}
+        }
+      });
+      saveTxData(txs);
+    }
+    arr[editingAssetIndex]={name,type,initialBalance,iconUrl};
+  }else arr.push({name,type,initialBalance,iconUrl});
+  saveAssets(curUser,arr);
+  closeModal('modal-asset');renderAssets();showToast('✓ Збережено');
+}
+function deleteAssetFromModal(){
+  const i=editingAssetIndex;
+  closeModal('modal-asset');
+  openConfirm('Видалити актив?','Операції залишаться, але без прив\u2019язки до картки',()=>{
+    const a=getAssets(curUser);a.splice(i,1);saveAssets(curUser,a);renderAssets();showToast('Видалено');
+  });
+}
+
+// ── CATEGORIES ──
+function renderSettings(){
+  renderCatRows('expense');renderCatRows('income');
+  initSortable('cat-rows-exp','expense');initSortable('cat-rows-inc','income');
+}
+function renderCatRows(type){
+  const cats=getCatsFor(curUser,type);
+  const containerId=type==='income'?'cat-rows-inc':'cat-rows-exp';
+  document.getElementById(containerId).innerHTML=cats.map((c,i)=>`
+    <div class="cat-row" data-idx="${i}">
+      <div class="drag-handle">⠿</div>
+      <div class="cat-row-main" onclick="openCatEdit('${type}',${i})">
+        <div class="cat-icon">${c.icon||'📦'}</div>
+        <div class="cat-label">${c.label}</div>
+      </div>
+    </div>`).join('');
+}
+function initSortable(containerId,type){
+  const container=document.getElementById(containerId);
+  let dragEl=null;
+  container.querySelectorAll('.cat-row').forEach(row=>{
+    const handle=row.querySelector('.drag-handle');
+    handle.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      dragEl=row;
+      row.classList.add('dragging');
+      try{handle.setPointerCapture(e.pointerId)}catch{}
+    });
+    handle.addEventListener('pointermove',e=>{
+      if(!dragEl)return;
+      const rows=[...container.querySelectorAll('.cat-row')];
+      const y=e.clientY;
+      for(const r of rows){
+        if(r===dragEl)continue;
+        const rect=r.getBoundingClientRect();
+        if(y>rect.top&&y<rect.bottom){
+          const di=rows.indexOf(dragEl),ti=rows.indexOf(r);
+          if(di<ti)r.after(dragEl);else r.before(dragEl);
+          break;
+        }
+      }
+    });
+    const finish=()=>{
+      if(!dragEl)return;
+      dragEl.classList.remove('dragging');
+      const rows=[...container.querySelectorAll('.cat-row')];
+      const cats=getCatsFor(curUser,type);
+      const newOrder=rows.map(r=>cats[parseInt(r.dataset.idx)]);
+      saveCatsFor(curUser,type,newOrder);
+      dragEl=null;
+      renderSettings();
+    };
+    handle.addEventListener('pointerup',finish);
+    handle.addEventListener('pointercancel',finish);
+  });
+}
+function openCatEdit(type,index){
+  catEditType=type;catEditIndex=index;
+  const cats=getCatsFor(curUser,type);
+  const delBtn=document.getElementById('cat-delete-btn');
+  if(index===null){
+    catEditIcon='📦';
+    document.getElementById('cat-edit-title').textContent='Нова категорія';
+    document.getElementById('cat-edit-label').value='';
+    delBtn.style.display='none';
+  }else{
+    const c=cats[index];
+    catEditIcon=c.icon||'📦';
+    document.getElementById('cat-edit-title').textContent='Редагувати категорію';
+    document.getElementById('cat-edit-label').value=c.label;
+    delBtn.style.display='block';
+  }
+  document.getElementById('cat-edit-emoji-btn').textContent=catEditIcon;
+  openModal('modal-cat-edit');
+}
+function saveCatEdit(){
+  const label=document.getElementById('cat-edit-label').value.trim();
+  if(!label){showToast('⚠️ Введи назву');return}
+  const cats=getCatsFor(curUser,catEditType);
+  if(catEditIndex===null)cats.push({icon:catEditIcon,label});
+  else cats[catEditIndex]={icon:catEditIcon,label};
+  saveCatsFor(curUser,catEditType,cats);
+  closeModal('modal-cat-edit');renderSettings();showToast('✓ Збережено');
+}
+function deleteCatFromModal(){
+  const type=catEditType,i=catEditIndex;
+  closeModal('modal-cat-edit');
+  openConfirm('Видалити категорію?','Операції з цією категорією залишаться без змін',()=>{
+    const cats=getCatsFor(curUser,type);cats.splice(i,1);saveCatsFor(curUser,type,cats);renderSettings();showToast('Видалено');
+  });
+}
+function renderEmojiGrid(){
+  document.getElementById('emoji-grid').innerHTML=EMOJI_LIST.map(e=>`<button class="emoji-item" onclick="pickEmoji('${e}')">${e}</button>`).join('');
+}
+function pickEmoji(e){
+  catEditIcon=e;
+  document.getElementById('cat-edit-emoji-btn').textContent=e;
+  closeModal('modal-emoji');
+}
+
+// ── UTILS ──
+function fmt(n){return Number(n).toLocaleString('uk-UA',{minimumFractionDigits:0,maximumFractionDigits:2})}
+let _toastTimer=null;
+function showToast(msg){
+  const t=document.getElementById('toast');
+  if(_toastTimer){clearTimeout(_toastTimer);t.classList.remove('show')}
+  t.textContent=msg;
+  requestAnimationFrame(()=>{
+    t.classList.add('show');
+    _toastTimer=setTimeout(()=>{t.classList.remove('show');_toastTimer=null},2200);
+  });
+}
+
+// INIT
+updateAuthScreen();
+// auto-restore session
+(function(){
+  const saved=ls(K_SESSION);
+  if(saved==='user1'||saved==='user2') login(saved);
+})();
+</script>
+</body>
+</html>
