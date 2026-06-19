@@ -436,6 +436,10 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <label class="form-label">Примітка</label>
         <input class="form-input" id="tr-note" placeholder="Необов'язково">
       </div>
+      <div class="form-group">
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="tr-date" type="date">
+      </div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:14px">Сума переказу не є витратою. Комісія якщо є — піде у витрати.</div>
     </div>
 
@@ -825,13 +829,15 @@ async function saveTransfer(){
   const amt=parseFloat(document.getElementById('tr-amount').value);
   const fee=parseFloat(document.getElementById('tr-fee').value)||0;
   const note=document.getElementById('tr-note').value.trim();
+  const trDateVal=document.getElementById('tr-date').value;
+  const trDate=trDateVal?new Date(trDateVal+'T12:00:00').toISOString():new Date().toISOString();
   if(!from||!to){showToast('⚠️ Додай картки у «Активи»');return}
   if(from===to){showToast('⚠️ Обери різні картки');return}
   if(!amt||amt<=0){showToast('⚠️ Введи суму');return}
   showLoader(true);
   const now=Date.now();
-  await addTxRow({id:now,user:curUser,type:'transfer',transferOwn:true,amount:amt,from,to,note,date:new Date().toISOString()});
-  if(fee>0)await addTxRow({id:now+1,user:curUser,type:'expense',amount:fee,category:'🏦 Комісія',assetName:from,note:'Комісія '+from+'→'+to,date:new Date().toISOString()});
+  await addTxRow({id:now,user:curUser,type:'transfer',transferOwn:true,amount:amt,from,to,note,date:trDate});
+  if(fee>0)await addTxRow({id:now+1,user:curUser,type:'expense',amount:fee,category:'🏦 Комісія',assetName:from,note:'Комісія '+from+'→'+to,date:trDate});
   showLoader(false);
   closeModal('modal-tx');showToast('✓ Переказ збережено');
   await renderDashboard();
@@ -848,6 +854,7 @@ function resetTxForm(){
   document.getElementById('tr-amount').value='';
   document.getElementById('tr-fee').value='0';
   document.getElementById('tr-note').value='';
+  document.getElementById('tr-date').value=new Date().toISOString().slice(0,10);
   setType('expense');
 }
 
@@ -1017,7 +1024,7 @@ async function renderDashboard(){
       <div class="bar-val">${fmt(val)} ₴</div>
     </div>`).join(''):'<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Немає витрат цього місяця</div></div>';
 
-  const recAll=allTx.filter(t=>!(t.type==='income'&&t.user!==curUser));
+  const recAll=allTx.filter(t=>t.type==='expense');
   const showCount=recentExpanded?Math.min(recAll.length,30):5;
   const rec=recAll.slice(0,showCount);
   let html=rec.length?rec.map(t=>txHtml(t)).join(''):'<div class="empty"><div class="empty-icon">💸</div><div class="empty-text">Операцій ще немає</div></div>';
