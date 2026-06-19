@@ -337,6 +337,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <span style="color:var(--muted);font-size:13px">—</span>
         <input type="date" class="filter-sel" id="f-date-to" onchange="renderHistory()" style="flex:1;min-width:130px">
       </div>
+      <div id="history-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px"></div>
       <div class="tx-list" id="history-list"></div>
     </div>
 
@@ -625,20 +626,43 @@ async function saveAssetRow(u,a,isEdit){
 }
 async function deleteAssetRow(u,id){_assetsCache[u]=null;await sbFetch('assets?id=eq.'+id,{method:'DELETE'})}
 
-// ── CATS (local per device/user) ──
+// ── CATS (synced via Supabase) ──
+// helpers
 function parseCatString(s){
   const m=String(s||'').match(/^(\S+)\s+(.*)$/);
   return m?{icon:m[1],label:m[2]}:{icon:'📦',label:String(s||'')};
 }
 function catToString(c){return (c.icon?c.icon+' ':'')+c.label}
 function stripEmoji(s){return String(s||'').replace(/^\S+\s*/,'')}
-function getCatsFor(user,type){
-  const key=(type==='income'?K_CATS_INC:K_CATS)+user;
-  let v=ls(key);if(v)return v;
+let _catsCache={};
+async function getCatsFor(user,type){
+  const key=user+'_'+type;
+  if(_catsCache[key])return _catsCache[key];
+  const field=type==='income'?'cats_income':'cats_expense';
+  const data=await sbFetch('user_settings?select='+field+'&user_id=eq.'+user);
+  if(data&&data[0]&&data[0][field]){
+    _catsCache[key]=data[0][field];
+    return _catsCache[key];
+  }
   const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
-  lss(key,def);return def;
+  _catsCache[key]=def;
+  return def;
 }
-function saveCatsFor(user,type,arr){lss((type==='income'?K_CATS_INC:K_CATS)+user,arr)}
+async function saveCatsFor(user,type,arr){
+  _catsCache[user+'_'+type]=arr;
+  const field=type==='income'?'cats_income':'cats_expense';
+  // upsert
+  await sbFetch('user_settings?user_id=eq.'+user,{
+    method:'PATCH',
+    headers:{'Prefer':'return=minimal'},
+    body:JSON.stringify({[field]:arr})
+  });
+  // if no row existed, insert
+  const check=await sbFetch('user_settings?select=user_id&user_id=eq.'+user);
+  if(!check||!check.length){
+    await sbFetch('user_settings',{method:'POST',body:JSON.stringify({user_id:user,[field]:arr})});
+  }
+}
 
 // ── LOADER ──
 function showLoader(on){const l=document.getElementById('app-loader');if(l)l.style.display=on?'flex':'none'}
@@ -733,7 +757,7 @@ async function goTab(t){
   if(t==='dashboard')await renderDashboard();
   if(t==='history')await renderHistory();
   if(t==='assets')await renderAssets();
-  if(t==='settings')renderSettings();
+  if(t==='settings')await renderSettings();
 }
 
 // ── MONTH ──
@@ -755,11 +779,11 @@ async function setType(t){
   document.getElementById('fields-main').style.display=t==='transfer'?'none':'block';
   document.getElementById('fields-transfer').style.display=t==='transfer'?'block':'none';
   if(t==='transfer'){
-    populateAssetSelect(document.getElementById('tr-from'),false);
-    populateAssetSelect(document.getElementById('tr-to'),false);
+    await populateAssetSelect(document.getElementById('tr-from'),false);
+    await populateAssetSelect(document.getElementById('tr-to'),false);
   } else {
-    populateCatSelect();
-    populateAssetSelect(document.getElementById('tx-asset'),false);
+    await populateCatSelect();
+    await populateAssetSelect(document.getElementById('tx-asset'),false);
   }
 }
 
@@ -783,9 +807,9 @@ function resolveAmount(raw){
 }
 
 // ── SELECTS ──
-function populateCatSelect(){
+async function populateCatSelect(){
+  const cats=await getCatsFor(curUser,txType==='income'?'income':'expense');
   const s=document.getElementById('tx-cat');
-  const cats=getCatsFor(curUser,txType==='income'?'income':'expense');
   s.innerHTML=cats.map(c=>{const v=catToString(c);return `<option value="${v}">${v}</option>`}).join('');
 }
 async function populateAssetSelect(selectEl,includeNone){
@@ -1080,15 +1104,31 @@ async function renderHistory(){
   const cat=document.getElementById('f-cat').value;
   const{from,to}=getDateRange();
   const allTx=await getTx();
-  let arr=allTx.filter(t=>!(t.type==='income'&&t.user!==curUser));
+
+  // base: no transfers, hide partner income
+  let arr=allTx.filter(t=>t.type!=='transfer'&&!(t.type==='income'&&t.user!==curUser));
   if(who!=='all')arr=arr.filter(t=>t.user===who);
   if(type!=='all')arr=arr.filter(t=>t.type===type);
   if(cat!=='all')arr=arr.filter(t=>t.category===cat);
   if(from)arr=arr.filter(t=>new Date(t.date)>=from);
   if(to)arr=arr.filter(t=>new Date(t.date)<=to);
-  const allCats=[...new Set(allTx.filter(t=>t.type!=='income'||t.user===curUser).map(t=>t.category).filter(Boolean))];
+
+  // populate category filter from both profiles (sync)
+  const allCats=[...new Set(allTx.filter(t=>t.type!=='transfer'&&!(t.type==='income'&&t.user!==curUser)).map(t=>t.category).filter(Boolean))];
   const fs=document.getElementById('f-cat'),cur=fs.value;
   fs.innerHTML='<option value="all">Всі категорії</option>'+allCats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
+
+  // summary
+  const totalExp=arr.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const totalInc=arr.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const summaryEl=document.getElementById('history-summary');
+  let sumHtml='';
+  if(arr.length){
+    sumHtml+=`<div style="padding:8px 14px;background:var(--red-s);border:1px solid var(--red);border-radius:var(--rs);font-size:13px;font-weight:700;color:var(--red)">−${fmt(totalExp)} ₴ витрат</div>`;
+    if(totalInc>0)sumHtml+=`<div style="padding:8px 14px;background:var(--green-s);border:1px solid var(--green);border-radius:var(--rs);font-size:13px;font-weight:700;color:var(--green)">+${fmt(totalInc)} ₴ доходів</div>`;
+    sumHtml+=`<div style="padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);font-size:13px;color:var(--muted)">${arr.length} операцій</div>`;
+  }
+  summaryEl.innerHTML=sumHtml;
 
   document.getElementById('history-list').innerHTML=arr.length?arr.map(t=>txHtml(t)).join(''):
     '<div class="empty"><div class="empty-icon">🔍</div><div class="empty-text">Нічого не знайдено</div></div>';
@@ -1181,9 +1221,22 @@ async function saveAsset(){
   if(!name){showToast('⚠️ Введи назву');return}
   showLoader(true);
   const isEdit=editingAssetIndex!==null;
-  await saveAssetRow(curUser,{...(isEdit?{id:editingAssetIndex.id}:{}),name,type,initialBalance,iconUrl},isEdit);
+  const body={name,type,initial_balance:initialBalance,icon_url:iconUrl||null};
+  let ok=false;
+  if(isEdit){
+    const r=await sbFetch('assets?id=eq.'+editingAssetIndex.id,{method:'PATCH',body:JSON.stringify(body)});
+    ok=true; // PATCH повертає null при success
+  } else {
+    const r=await sbFetch('assets',{method:'POST',body:JSON.stringify({user_id:curUser,...body})});
+    ok=true; // POST повертає null при success
+  }
+  _assetsCache[curUser]=null;
   showLoader(false);
-  closeModal('modal-asset');await renderAssets();showToast('✓ Збережено');
+  if(ok){
+    closeModal('modal-asset');
+    await renderAssets();
+    showToast('✓ Збережено');
+  }
 }
 function deleteAssetFromModal(){
   const a=editingAssetIndex;
@@ -1197,12 +1250,14 @@ function deleteAssetFromModal(){
 }
 
 // ── CATEGORIES ──
-function renderSettings(){
-  renderCatRows('expense');renderCatRows('income');
-  initSortable('cat-rows-exp','expense');initSortable('cat-rows-inc','income');
+async function renderSettings(){
+  await renderCatRows('expense');
+  await renderCatRows('income');
+  initSortable('cat-rows-exp','expense');
+  initSortable('cat-rows-inc','income');
 }
-function renderCatRows(type){
-  const cats=getCatsFor(curUser,type);
+async function renderCatRows(type){
+  const cats=await getCatsFor(curUser,type);
   const containerId=type==='income'?'cat-rows-inc':'cat-rows-exp';
   document.getElementById(containerId).innerHTML=cats.map((c,i)=>`
     <div class="cat-row" data-idx="${i}">
@@ -1238,23 +1293,23 @@ function initSortable(containerId,type){
         }
       }
     });
-    const finish=()=>{
+    const finish=async()=>{
       if(!dragEl)return;
       dragEl.classList.remove('dragging');
       const rows=[...container.querySelectorAll('.cat-row')];
-      const cats=getCatsFor(curUser,type);
-      const newOrder=rows.map(r=>cats[parseInt(r.dataset.idx)]);
-      saveCatsFor(curUser,type,newOrder);
+      const cats=await getCatsFor(curUser,type);
+      const newOrder=rows.map(r=>cats[parseInt(r.dataset.idx)]).filter(Boolean);
+      await saveCatsFor(curUser,type,newOrder);
       dragEl=null;
-      renderSettings();
+      await renderSettings();
     };
     handle.addEventListener('pointerup',finish);
     handle.addEventListener('pointercancel',finish);
   });
 }
-function openCatEdit(type,index){
+async function openCatEdit(type,index){
   catEditType=type;catEditIndex=index;
-  const cats=getCatsFor(curUser,type);
+  const cats=await getCatsFor(curUser,type);
   const delBtn=document.getElementById('cat-delete-btn');
   if(index===null){
     document.getElementById('cat-edit-title').textContent='Нова категорія';
@@ -1268,21 +1323,24 @@ function openCatEdit(type,index){
   }
   openModal('modal-cat-edit');
 }
-function saveCatEdit(){
+async function saveCatEdit(){
   const raw=document.getElementById('cat-edit-label').value.trim();
   if(!raw){showToast('⚠️ Введи назву');return}
   const parsed=parseCatString(raw);
-  const cats=getCatsFor(curUser,catEditType);
+  const cats=await getCatsFor(curUser,catEditType);
   if(catEditIndex===null)cats.push(parsed);
   else cats[catEditIndex]=parsed;
-  saveCatsFor(curUser,catEditType,cats);
-  closeModal('modal-cat-edit');renderSettings();showToast('✓ Збережено');
+  await saveCatsFor(curUser,catEditType,cats);
+  closeModal('modal-cat-edit');await renderSettings();showToast('✓ Збережено');
 }
 function deleteCatFromModal(){
   const type=catEditType,i=catEditIndex;
   closeModal('modal-cat-edit');
-  openConfirm('Видалити категорію?','Операції з цією категорією залишаться без змін',()=>{
-    const cats=getCatsFor(curUser,type);cats.splice(i,1);saveCatsFor(curUser,type,cats);renderSettings();showToast('Видалено');
+  openConfirm('Видалити категорію?','Операції з цією категорією залишаться без змін',async()=>{
+    const cats=await getCatsFor(curUser,type);
+    cats.splice(i,1);
+    await saveCatsFor(curUser,type,cats);
+    await renderSettings();showToast('Видалено');
   });
 }
 function renderEmojiGrid(){
