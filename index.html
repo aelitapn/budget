@@ -157,6 +157,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .form-group{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
 .form-label{font-size:11px;font-weight:600;color:var(--soft);text-transform:uppercase;letter-spacing:.5px}
 .form-input,.form-select{padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;outline:none;transition:border-color .15s;width:100%}
+.form-select{appearance:none;-webkit-appearance:none;padding-right:38px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a8fa3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
 .form-input:focus,.form-select:focus{border-color:var(--accent)}
 .form-select option{background:var(--surface2)}
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -214,7 +215,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
 /* FILTER */
 .filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-.filter-sel{padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;outline:none;cursor:pointer}
+.filter-sel{padding:8px 34px 8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a8fa3' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 
 /* MISC */
 .empty{text-align:center;padding:36px 20px;color:var(--muted)}
@@ -233,7 +234,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .mini-card-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Larger physical-card style for Assets tab */
-.asset-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.asset-card-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:480px){.asset-card-grid{grid-template-columns:repeat(2,1fr)}}
 .asset-card{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:10px;min-height:90px;position:relative}
 .asset-card:hover{border-color:var(--soft)}
 .asset-card.dragging{opacity:.4}
@@ -333,7 +335,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
     <!-- HISTORY -->
     <div class="tab-panel" id="tab-history">
-      <div class="sec-hd"><div class="sec-title">Операції</div></div>
+      <div class="sec-hd"><div class="sec-title">Транзакції</div></div>
       <div class="filter-row" style="flex-wrap:wrap">
         <select class="filter-sel" id="f-who" onchange="renderHistory()">
           <option value="all">👥 Всі</option>
@@ -374,7 +376,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <!-- ASSETS -->
     <div class="tab-panel" id="tab-assets">
       <div class="sec-hd">
-        <div class="sec-title">Мої активи</div>
+        <div class="sec-title">Мої картки</div>
         <button class="btn-sm" onclick="openAssetModal(null)">+ Додати</button>
       </div>
       <div id="asset-list"></div>
@@ -389,7 +391,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <div class="sec-hd"><div class="sec-title">Категорії доходів</div><button class="btn-sm" onclick="openCatEdit('income',null)">+ Додати</button></div>
         <div class="cat-rows" id="cat-rows-inc"></div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:16px">⠿ Затримай і тягни щоб змінити порядок · натисни на категорію щоб редагувати · кожен профіль налаштовує свої окремо</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:16px">⠿ Затримай і тягни щоб змінити порядок · натисни на категорію щоб редагувати · категорії спільні для обох профілів</div>
     </div>
 
   </div>
@@ -397,9 +399,9 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
   <button class="fab" onclick="openNewTx()" title="Нова операція">＋</button>
 
   <div class="bottom-nav">
-    <button class="bottom-nav-item active" onclick="goTab('dashboard')"><span class="bottom-nav-icon">📊</span><span>Огляд</span></button>
-    <button class="bottom-nav-item" onclick="goTab('history')"><span class="bottom-nav-icon">📋</span><span>Операції</span></button>
-    <button class="bottom-nav-item" onclick="goTab('assets')"><span class="bottom-nav-icon">💳</span><span>Активи</span></button>
+    <button class="bottom-nav-item active" onclick="goTab('dashboard')"><span class="bottom-nav-icon">📊</span><span>Дашборд</span></button>
+    <button class="bottom-nav-item" onclick="goTab('history')"><span class="bottom-nav-icon">📋</span><span>Транзакції</span></button>
+    <button class="bottom-nav-item" onclick="goTab('assets')"><span class="bottom-nav-icon">💳</span><span>Картки</span></button>
     <button class="bottom-nav-item" onclick="goTab('settings')"><span class="bottom-nav-icon">⚙️</span><span>Категорії</span></button>
   </div>
 </div>
@@ -690,7 +692,7 @@ async function saveAssetRow(u,a,isEdit){
     // rename: update all old transactions referencing the old name
     if(a.oldName&&a.oldName!==a.name){
       const allTx=await getTx();
-      const toUpdate=allTx.filter(t=>t.user===u&&(t.assetName===a.oldName||t.from===a.oldName||t.to===a.oldName));
+      const toUpdate=allTx.filter(t=>t.assetName===a.oldName||t.from===a.oldName||t.to===a.oldName);
       for(const t of toUpdate){
         const patch={};
         if(t.assetName===a.oldName)patch.asset_name=a.name;
@@ -721,13 +723,21 @@ async function getCatsFor(user,type){
   if(_catsCache[key])return applyLocalOrder(user,type,_catsCache[key]);
   const field=type==='income'?'cats_income':'cats_expense';
   const data=await sbFetch('user_settings?select='+field+'&user_id=eq.'+SHARED_CATS_KEY);
-  if(data&&data[0]&&data[0][field]){
+  if(data&&data[0]&&data[0][field]&&data[0][field].length){
     _catsCache[key]=data[0][field];
     return applyLocalOrder(user,type,_catsCache[key]);
   }
-  const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
-  _catsCache[key]=def;
-  return applyLocalOrder(user,type,def);
+  // shared row doesn't exist yet — try to migrate from old per-user data (user1 first, then user2)
+  let migrated=null;
+  for(const u of ['user1','user2']){
+    const old=await sbFetch('user_settings?select='+field+'&user_id=eq.'+u);
+    if(old&&old[0]&&old[0][field]&&old[0][field].length){migrated=old[0][field];break}
+  }
+  const result=migrated||(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
+  _catsCache[key]=result;
+  // persist as the new shared source of truth
+  await saveCatsFor(user,type,result);
+  return applyLocalOrder(user,type,result);
 }
 function applyLocalOrder(user,type,cats){
   // each profile can keep its own local visual order without affecting the shared list
@@ -834,6 +844,7 @@ async function openModal(id){
 async function openNewTx(){
   editingTxId=null;
   editingTxOriginalDate=null;
+  _catsCache={};
   document.getElementById('modal-tx-title').textContent='Нова операція';
   document.getElementById('tx-delete-btn').style.display='none';
   document.getElementById('tx-amount').value='';
@@ -873,7 +884,7 @@ async function goTab(t){
   if(t==='dashboard')await renderDashboard();
   if(t==='history')await renderHistory();
   if(t==='assets')await renderAssets();
-  if(t==='settings')await renderSettings();
+  if(t==='settings'){_catsCache={};await renderSettings()}
 }
 
 // ── MONTH ──
