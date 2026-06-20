@@ -561,7 +561,28 @@ async function sbFetch(path,opts={}){
 }
 
 // ── KEYS ──
-const K_NAMES='bgt_names',K_CATS='bgt_cats_',K_CATS_INC='bgt_cats_inc_',K_SESSION='bgt_session';
+const K_SESSION='bgt_session';
+
+let _namesCache=null;
+async function getNames(){
+  if(_namesCache)return _namesCache;
+  const data=await sbFetch('user_settings?select=user_id,name');
+  const n={user1:'Профіль 1',user2:'Профіль 2'};
+  if(data){
+    data.forEach(r=>{if(r.name){if(r.user_id==='user1')n.user1=r.name;if(r.user_id==='user2')n.user2=r.name}});
+  }
+  _namesCache=n;
+  return n;
+}
+async function saveName(user,name){
+  _namesCache=null;
+  const check=await sbFetch('user_settings?select=user_id&user_id=eq.'+user);
+  if(check&&check.length){
+    await sbFetch('user_settings?user_id=eq.'+user,{method:'PATCH',body:JSON.stringify({name})});
+  }else{
+    await sbFetch('user_settings',{method:'POST',body:JSON.stringify({user_id:user,name})});
+  }
+}
 
 const DEFAULT_CATS=[
  {icon:'🛒',label:'Продукти'},{icon:'🍽️',label:'Кафе і ресторани'},{icon:'🚗',label:'Транспорт'},
@@ -578,7 +599,6 @@ const EMOJI_LIST=['🛒','🍽️','🍔','🍕','☕','🧋','🍺','🍷','�
 // ── LOCAL helpers ──
 function ls(k){try{return JSON.parse(localStorage.getItem(k))}catch{return null}}
 function lss(k,v){localStorage.setItem(k,JSON.stringify(v))}
-function getNames(){return ls(K_NAMES)||{user1:'Профіль 1',user2:'Профіль 2'}}
 
 // ── TX ──
 let _txCache=null;
@@ -678,7 +698,7 @@ let confirmCallback=null,recentExpanded=false;
 async function login(u){
   curUser=u;
   lss(K_SESSION,u);
-  const n=getNames();
+  const n=await getNames();
   const name=u==='user1'?n.user1:n.user2;
   const av=document.getElementById('cur-av');
   av.textContent=name[0].toUpperCase();
@@ -686,7 +706,7 @@ async function login(u){
   document.getElementById('cur-name').textContent=name;
   document.getElementById('auth-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  updateFilterNames();
+  await updateFilterNames();
   await goTab('dashboard');
 }
 function logout(){
@@ -695,19 +715,33 @@ function logout(){
   document.getElementById('auth-screen').style.display='flex';
   document.getElementById('app').style.display='none';
 }
-function updateAuthScreen(){
-  const n=getNames();
+async function updateAuthScreen(){
+  const n=await getNames();
   document.getElementById('btn-n1').textContent=n.user1;
   document.getElementById('btn-n2').textContent=n.user2;
   document.getElementById('av1l').textContent=n.user1[0].toUpperCase();
   document.getElementById('av2l').textContent=n.user2[0].toUpperCase();
 }
-function updateFilterNames(){const n=getNames();document.getElementById('f-n1').textContent=n.user1;document.getElementById('f-n2').textContent=n.user2}
-function saveNames(){
+async function updateFilterNames(){
+  const n=await getNames();
+  document.getElementById('f-n1').textContent=n.user1;
+  document.getElementById('f-n2').textContent=n.user2;
+}
+async function saveNames(){
   const n1=document.getElementById('n1-inp').value.trim()||'Профіль 1';
   const n2=document.getElementById('n2-inp').value.trim()||'Профіль 2';
-  lss(K_NAMES,{user1:n1,user2:n2});
-  updateAuthScreen();updateFilterNames();
+  showLoader(true);
+  await saveName('user1',n1);
+  await saveName('user2',n2);
+  showLoader(false);
+  await updateAuthScreen();
+  await updateFilterNames();
+  if(curUser){
+    const av=document.getElementById('cur-av');
+    const myName=curUser==='user1'?n1:n2;
+    av.textContent=myName[0].toUpperCase();
+    document.getElementById('cur-name').textContent=myName;
+  }
   closeModal('modal-names');
   showToast('✓ Збережено');
 }
@@ -719,12 +753,12 @@ async function openModal(id){
       await populateAssetSelect(document.getElementById('tr-from'),false);
       await populateAssetSelect(document.getElementById('tr-to'),false);
     } else {
-      populateCatSelect();
+      await populateCatSelect();
       await populateAssetSelect(document.getElementById('tx-asset'),false);
     }
   }
   if(id==='modal-names'){
-    const n=getNames();
+    const n=await getNames();
     document.getElementById('n1-inp').value=n.user1;
     document.getElementById('n2-inp').value=n.user2;
   }
@@ -887,7 +921,7 @@ async function openTxItem(id){
   const txs=await getTx();
   const t=txs.find(x=>x.id===id);
   if(!t)return;
-  if(t.type==='transfer')openTransferView(t);
+  if(t.type==='transfer')await openTransferView(t);
   else editTx(t);
 }
 async function editTx(t){
@@ -908,9 +942,9 @@ async function editTx(t){
 function deleteTxFromModal(){
   const id=editingTxId;closeModal('modal-tx');confirmDel(id);
 }
-function openTransferView(t){
+async function openTransferView(t){
   viewingTransferId=t.id;
-  const names=getNames();
+  const names=await getNames();
   const name=t.user==='user1'?names.user1:names.user2;
   const wc=t.user==='user1'?'who1':'who2';
   const ds=new Date(t.date).toLocaleString('uk-UA',{day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -946,7 +980,7 @@ async function renderDashboard(){
   const d=new Date(viewYear,viewMonth,1);
   document.getElementById('month-lbl').textContent=d.toLocaleString('uk-UA',{month:'long',year:'numeric'});
   const allTx=await getTx();
-  const names=getNames();
+  const names=await getNames();
   const all=allTx.filter(t=>{const dt=new Date(t.date);return dt.getMonth()===viewMonth&&dt.getFullYear()===viewYear});
   const allExp=all.filter(t=>t.type==='expense');
   const partnerUser=curUser==='user1'?'user2':'user1';
@@ -1066,7 +1100,7 @@ async function showCatDetail(cat){
     const dt=new Date(t.date);
     return t.type==='expense'&&t.category===cat&&dt.getMonth()===viewMonth&&dt.getFullYear()===viewYear;
   });
-  const names=getNames();
+  const names=await getNames();
   document.getElementById('cat-detail-title').textContent=cat;
   document.getElementById('cat-detail-body').innerHTML=all.length?all.map(t=>{
     const name=t.user==='user1'?names.user1:names.user2;
@@ -1135,7 +1169,7 @@ async function renderHistory(){
 }
 
 function txHtml(t){
-  const names=getNames();
+  const names=_namesCache||{user1:'Профіль 1',user2:'Профіль 2'};
   const name=t.user==='user1'?names.user1:names.user2;
   const wc=t.user==='user1'?'who1':'who2';
   const ds=new Date(t.date).toLocaleString('uk-UA',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
