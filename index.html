@@ -348,9 +348,11 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <select class="filter-sel" id="f-cat" onchange="renderHistory()">
           <option value="all">Всі категорії</option>
         </select>
-        <select class="filter-sel" id="f-asset" onchange="renderHistory()">
-          <option value="all">Всі картки</option>
-        </select>
+        <span id="f-asset-group" style="display:none">
+          <select class="filter-sel" id="f-asset" onchange="renderHistory()">
+            <option value="all">Всі картки</option>
+          </select>
+        </span>
         <select class="filter-sel" id="f-date-preset" onchange="onDatePreset()">
           <option value="all">📅 Весь час</option>
           <option value="today">Сьогодні</option>
@@ -712,32 +714,48 @@ function parseCatString(s){
 function catToString(c){return (c.icon?c.icon+' ':'')+c.label}
 function stripEmoji(s){return String(s||'').replace(/^\S+\s*/,'')}
 let _catsCache={};
+const SHARED_CATS_KEY='shared';
 async function getCatsFor(user,type){
-  const key=user+'_'+type;
-  if(_catsCache[key])return _catsCache[key];
+  // categories are SHARED between both profiles — stored under a single shared row
+  const key='shared_'+type;
+  if(_catsCache[key])return applyLocalOrder(user,type,_catsCache[key]);
   const field=type==='income'?'cats_income':'cats_expense';
-  const data=await sbFetch('user_settings?select='+field+'&user_id=eq.'+user);
+  const data=await sbFetch('user_settings?select='+field+'&user_id=eq.'+SHARED_CATS_KEY);
   if(data&&data[0]&&data[0][field]){
     _catsCache[key]=data[0][field];
-    return _catsCache[key];
+    return applyLocalOrder(user,type,_catsCache[key]);
   }
   const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
   _catsCache[key]=def;
-  return def;
+  return applyLocalOrder(user,type,def);
 }
-async function saveCatsFor(user,type,arr){
-  _catsCache[user+'_'+type]=arr;
+function applyLocalOrder(user,type,cats){
+  // each profile can keep its own local visual order without affecting the shared list
+  const orderKey='bgt_cat_order_'+user+'_'+type;
+  const order=ls(orderKey);
+  if(!order||!Array.isArray(order))return cats;
+  const byLabel={};cats.forEach(c=>{byLabel[catToString(c)]=c});
+  const sorted=order.map(k=>byLabel[k]).filter(Boolean);
+  const remaining=cats.filter(c=>!order.includes(catToString(c)));
+  return [...sorted,...remaining];
+}
+async function saveCatsFor(user,type,arr,localOrderOnly){
+  const key='shared_'+type;
+  if(localOrderOnly){
+    // just persist this profile's preferred order locally, don't touch shared data
+    lss('bgt_cat_order_'+user+'_'+type,arr.map(c=>catToString(c)));
+    return;
+  }
+  _catsCache[key]=arr;
   const field=type==='income'?'cats_income':'cats_expense';
-  // upsert
-  await sbFetch('user_settings?user_id=eq.'+user,{
+  await sbFetch('user_settings?user_id=eq.'+SHARED_CATS_KEY,{
     method:'PATCH',
     headers:{'Prefer':'return=minimal'},
     body:JSON.stringify({[field]:arr})
   });
-  // if no row existed, insert
-  const check=await sbFetch('user_settings?select=user_id&user_id=eq.'+user);
+  const check=await sbFetch('user_settings?select=user_id&user_id=eq.'+SHARED_CATS_KEY);
   if(!check||!check.length){
-    await sbFetch('user_settings',{method:'POST',body:JSON.stringify({user_id:user,[field]:arr})});
+    await sbFetch('user_settings',{method:'POST',body:JSON.stringify({user_id:SHARED_CATS_KEY,[field]:arr})});
   }
 }
 
@@ -1272,17 +1290,28 @@ async function renderHistory(){
   const fs=document.getElementById('f-cat'),cur=fs.value;
   fs.innerHTML='<option value="all">Всі категорії</option>'+allCats.map(c=>`<option value="${c}"${c===cur?' selected':''}>${c}</option>`).join('');
 
-  // populate asset filter — own cards plus any asset names appearing in tx data
-  const myAssets=await getAssets(curUser);
-  const myAssetNames=myAssets.map(a=>a.name);
-  const txAssetNames=[...new Set(allTx.filter(t=>t.type!=='transfer'&&!(t.type==='income'&&t.user!==curUser)).map(t=>t.assetName).filter(Boolean))];
-  const allAssetNames=[...new Set([...myAssetNames,...txAssetNames])];
+  // asset filter depends on "who": hidden for "all", shows only that profile's cards otherwise
+  const assetGroup=document.getElementById('f-asset-group');
   const fa=document.getElementById('f-asset'),curA=fa.value;
-  fa.innerHTML='<option value="all">Всі картки</option>'+allAssetNames.map(a=>{
-    const found=myAssets.find(x=>x.name===a);
-    const ic=found?(found.type||'').match(/^\S+/)?.[0]||'💳':'💳';
-    return `<option value="${a}"${a===curA?' selected':''}>${ic} ${a}</option>`;
-  }).join('');
+  if(who==='all'){
+    assetGroup.style.display='none';
+    if(asset!=='all'){
+      // reset since it no longer applies
+      fa.value='all';
+    }
+  }else{
+    assetGroup.style.display='block';
+    const partnerUserForFilter=who; // 'user1' or 'user2' explicitly selected
+    const assetsForFilter=who===curUser?await getAssets(curUser):await (async()=>{
+      // partner's cards: derive distinct names from their own transactions only
+      const names=[...new Set(allTx.filter(t=>t.user===who&&t.type!=='transfer'&&t.assetName).map(t=>t.assetName))];
+      return names.map(n=>({name:n,type:''}));
+    })();
+    fa.innerHTML='<option value="all">Всі картки</option>'+assetsForFilter.map(a=>{
+      const ic=(a.type||'').match(/^\S+/)?.[0]||'💳';
+      return `<option value="${a.name}"${a.name===curA?' selected':''}>${ic} ${a.name}</option>`;
+    }).join('');
+  }
 
   // summary
   const totalExp=arr.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
@@ -1472,7 +1501,7 @@ async function renderCatRows(type){
   document.getElementById(containerId).innerHTML=cats.map((c,i)=>`
     <div class="cat-row" data-idx="${i}">
       <div class="drag-handle">⠿</div>
-      <div class="cat-row-main" onclick="openCatEdit('${type}',${i})">
+      <div class="cat-row-main" onclick="openCatEditByLabel('${type}','${catToString(c).replace(/'/g,"\\'")}')">
         <div class="cat-icon">${c.icon||'📦'}</div>
         <div class="cat-label">${c.label}</div>
       </div>
@@ -1509,7 +1538,7 @@ function initSortable(containerId,type){
       const rows=[...container.querySelectorAll('.cat-row')];
       const cats=await getCatsFor(curUser,type);
       const newOrder=rows.map(r=>cats[parseInt(r.dataset.idx)]).filter(Boolean);
-      await saveCatsFor(curUser,type,newOrder);
+      await saveCatsFor(curUser,type,newOrder,true);
       dragEl=null;
       await renderSettings();
     };
@@ -1519,25 +1548,42 @@ function initSortable(containerId,type){
 }
 async function openCatEdit(type,index){
   catEditType=type;catEditIndex=index;
-  const cats=await getCatsFor(curUser,type);
   const delBtn=document.getElementById('cat-delete-btn');
   if(index===null){
     document.getElementById('cat-edit-title').textContent='Нова категорія';
     document.getElementById('cat-edit-label').value='';
     delBtn.style.display='none';
-  }else{
-    const c=cats[index];
-    document.getElementById('cat-edit-title').textContent='Редагувати категорію';
-    document.getElementById('cat-edit-label').value=catToString(c);
-    delBtn.style.display='block';
   }
   openModal('modal-cat-edit');
+}
+async function openCatEditByLabel(type,label){
+  const cats=await getSharedCatsRaw(type);
+  const idx=cats.findIndex(c=>catToString(c)===label);
+  catEditType=type;catEditIndex=idx>=0?idx:null;
+  const delBtn=document.getElementById('cat-delete-btn');
+  document.getElementById('cat-edit-title').textContent='Редагувати категорію';
+  document.getElementById('cat-edit-label').value=label;
+  delBtn.style.display='block';
+  openModal('modal-cat-edit');
+}
+async function getSharedCatsRaw(type){
+  const key='shared_'+type;
+  if(_catsCache[key])return _catsCache[key];
+  const field=type==='income'?'cats_income':'cats_expense';
+  const data=await sbFetch('user_settings?select='+field+'&user_id=eq.'+SHARED_CATS_KEY);
+  if(data&&data[0]&&data[0][field]){
+    _catsCache[key]=data[0][field];
+    return _catsCache[key];
+  }
+  const def=(type==='income'?DEFAULT_INC:DEFAULT_CATS).map(c=>({...c}));
+  _catsCache[key]=def;
+  return def;
 }
 async function saveCatEdit(){
   const raw=document.getElementById('cat-edit-label').value.trim();
   if(!raw){showToast('⚠️ Введи назву');return}
   const parsed=parseCatString(raw);
-  const cats=await getCatsFor(curUser,catEditType);
+  const cats=await getSharedCatsRaw(catEditType);
   if(catEditIndex===null)cats.push(parsed);
   else cats[catEditIndex]=parsed;
   await saveCatsFor(curUser,catEditType,cats);
@@ -1547,7 +1593,7 @@ function deleteCatFromModal(){
   const type=catEditType,i=catEditIndex;
   closeModal('modal-cat-edit');
   openConfirm('Видалити категорію?','Операції з цією категорією залишаться без змін',async()=>{
-    const cats=await getCatsFor(curUser,type);
+    const cats=await getSharedCatsRaw(type);
     cats.splice(i,1);
     await saveCatsFor(curUser,type,cats);
     await renderSettings();showToast('Видалено');
