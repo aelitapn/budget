@@ -928,12 +928,10 @@ async function editTx(t){
   if(!t||t.type==='transfer')return;
   editingTxId=t.id;
   document.getElementById('modal-tx-title').textContent='Редагувати операцію';
-  setType(t.type);
+  await setType(t.type);
   document.getElementById('tx-amount').value=t.amount;
   document.getElementById('tx-note').value=t.note||'';
   document.getElementById('tx-date').value=t.date?t.date.slice(0,10):new Date().toISOString().slice(0,10);
-  populateCatSelect();
-  await populateAssetSelect(document.getElementById('tx-asset'),true);
   document.getElementById('tx-cat').value=t.category;
   document.getElementById('tx-asset').value=t.assetName||'';
   document.getElementById('tx-delete-btn').style.display='block';
