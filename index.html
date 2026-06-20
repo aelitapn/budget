@@ -109,6 +109,13 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .chart-title{font-size:14px;font-weight:700}
 .chart-sub{font-size:11px;color:var(--muted);margin-bottom:14px}
 .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px;cursor:pointer;border-radius:6px;padding:4px 2px;transition:.15s}
+.cat-split-row{cursor:pointer;border-radius:8px;padding:8px;margin-bottom:6px;transition:.15s}
+.cat-split-row:hover{background:var(--surface2)}
+.cat-split-label{font-size:13px;font-weight:600;color:var(--soft);margin-bottom:6px}
+.cat-split-bars{display:flex;flex-direction:column;gap:4px}
+.cat-split-bar-line{display:flex;align-items:center;gap:8px}
+.bar-track.sm{height:6px}
+.cat-split-val{font-size:11px;font-weight:600;color:var(--muted);width:70px;text-align:right;flex-shrink:0}
 .bar-row:hover{background:var(--surface2)}
 .bar-label{width:120px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
 .bar-track{flex:1;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}
@@ -217,7 +224,25 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .sec-title{font-size:16px;font-weight:700}
 .info-box{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--blue-s);border:1px solid var(--blue);border-radius:var(--rs);color:var(--blue);font-size:13px;font-weight:500;margin-bottom:18px}
 
-/* CONFIRM */
+/* CARD PICKER (mini cards for tx form) */
+.card-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:4px}
+.mini-card{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1.5px solid var(--border);border-radius:10px;padding:12px 10px;cursor:pointer;transition:.15s;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:54px}
+.mini-card:hover{border-color:var(--soft)}
+.mini-card.selected{border-color:var(--accent);background:linear-gradient(135deg,rgba(108,99,255,.22),rgba(108,99,255,.06));box-shadow:0 0 0 1px var(--accent)}
+.mini-card-icon{font-size:18px;line-height:1}
+.mini-card-name{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Larger physical-card style for Assets tab */
+.asset-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.asset-card{background:linear-gradient(135deg,var(--surface2),var(--surface));border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:10px;min-height:90px;position:relative}
+.asset-card:hover{border-color:var(--soft)}
+.asset-card.dragging{opacity:.4}
+.asset-card-top{display:flex;align-items:center;justify-content:space-between}
+.asset-card-icon{font-size:22px}
+.asset-card-drag{font-size:15px;color:var(--muted);cursor:grab;touch-action:none;padding:2px 4px}
+.asset-card-name{font-size:14px;font-weight:700}
+.asset-card-type{font-size:11px;color:var(--muted);margin-top:-6px}
+.asset-card-balance{font-size:18px;font-weight:700;margin-top:auto}
 .confirm-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center;padding:24px}
 .confirm-overlay.open{display:flex}
 .confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:100%;max-width:340px;text-align:center}
@@ -296,8 +321,8 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
       <div id="profile-bento"></div>
       <div id="partner-bento"></div>
       <div class="chart-card">
-        <div class="chart-hd"><div class="chart-title">Спільні витрати за категоріями</div></div>
-        <div class="chart-sub">Витрати тебе і партнера разом · 👆 деталі · по кожному окремо — у «Операціях»</div>
+        <div class="chart-hd"><div class="chart-title">Витрати за категоріями</div></div>
+        <div class="chart-sub" id="cat-chart-legend">Хто скільки витратив по категоріях · 👆 для деталей</div>
         <div id="cat-chart"></div>
       </div>
       <div class="sec-hd">
@@ -346,7 +371,6 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
     <!-- ASSETS -->
     <div class="tab-panel" id="tab-assets">
-      <div class="info-box">🔒 Ці активи бачиш тільки ти · Баланс рахується автоматично</div>
       <div class="sec-hd">
         <div class="sec-title">Мої активи</div>
         <button class="btn-sm" onclick="openAssetModal(null)">+ Додати</button>
@@ -391,6 +415,12 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
       <button class="type-btn" id="tb-transfer" onclick="setType('transfer')">⇄ Переказ</button>
     </div>
 
+    <div class="form-group" id="tx-asset-group">
+      <label class="form-label">Картка <span style="color:var(--red)">*</span></label>
+      <div class="card-picker" id="tx-asset-picker"></div>
+      <select id="tx-asset" style="display:none"></select>
+    </div>
+
     <div id="fields-main">
       <div class="form-group">
         <label class="form-label">Сума (₴) — можна писати 350+480+225</label>
@@ -402,16 +432,12 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         <select class="form-select" id="tx-cat"></select>
       </div>
       <div class="form-group">
-        <label class="form-label">Картка <span style="color:var(--red)">*</span></label>
-        <select class="form-select" id="tx-asset"></select>
+        <label class="form-label">Дата</label>
+        <input class="form-input" id="tx-date" type="date">
       </div>
       <div class="form-group">
         <label class="form-label">Примітка (необов'язково)</label>
         <input class="form-input" id="tx-note" placeholder="АТБ, вечеря, зарплата...">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Дата</label>
-        <input class="form-input" id="tx-date" type="date">
       </div>
     </div>
 
@@ -638,13 +664,41 @@ let _assetsCache={};
 async function getAssets(u){
   if(_assetsCache[u])return _assetsCache[u];
   const data=await sbFetch('assets?select=*&user_id=eq.'+u+'&order=id.asc');
-  _assetsCache[u]=(data||[]).map(r=>({id:r.id,name:r.name,type:r.type,initialBalance:Number(r.initial_balance||0),iconUrl:r.icon_url||null}));
-  return _assetsCache[u];
+  let list=(data||[]).map(r=>({id:r.id,name:r.name,type:r.type,initialBalance:Number(r.initial_balance||0),iconUrl:r.icon_url||null}));
+  // apply local sort order if present
+  const order=ls('bgt_asset_order_'+u);
+  if(order&&Array.isArray(order)){
+    list.sort((a,b)=>{
+      const ia=order.indexOf(a.id),ib=order.indexOf(b.id);
+      if(ia===-1&&ib===-1)return 0;
+      if(ia===-1)return 1;
+      if(ib===-1)return -1;
+      return ia-ib;
+    });
+  }
+  _assetsCache[u]=list;
+  return list;
 }
+function saveAssetOrder(u,ids){lss('bgt_asset_order_'+u,ids)}
 async function saveAssetRow(u,a,isEdit){
   _assetsCache[u]=null;
   const body={name:a.name,type:a.type,initial_balance:a.initialBalance,icon_url:a.iconUrl||null};
-  if(isEdit)await sbFetch('assets?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify(body)});
+  if(isEdit){
+    await sbFetch('assets?id=eq.'+a.id,{method:'PATCH',body:JSON.stringify(body)});
+    // rename: update all old transactions referencing the old name
+    if(a.oldName&&a.oldName!==a.name){
+      const allTx=await getTx();
+      const toUpdate=allTx.filter(t=>t.user===u&&(t.assetName===a.oldName||t.from===a.oldName||t.to===a.oldName));
+      for(const t of toUpdate){
+        const patch={};
+        if(t.assetName===a.oldName)patch.asset_name=a.name;
+        if(t.from===a.oldName)patch.transfer_from=a.name;
+        if(t.to===a.oldName)patch.transfer_to=a.name;
+        await sbFetch('transactions?id=eq.'+t.id,{method:'PATCH',body:JSON.stringify(patch)});
+      }
+      _txCache=null;
+    }
+  }
   else await sbFetch('assets',{method:'POST',body:JSON.stringify({user_id:u,...body})});
 }
 async function deleteAssetRow(u,id){_assetsCache[u]=null;await sbFetch('assets?id=eq.'+id,{method:'DELETE'})}
@@ -693,7 +747,7 @@ function showLoader(on){const l=document.getElementById('app-loader');if(l)l.sty
 // ── STATE ──
 let curUser=null,txType='expense';
 let viewMonth=new Date().getMonth(),viewYear=new Date().getFullYear();
-let editingTxId=null,editingAssetIndex=null,viewingTransferId=null;
+let editingTxId=null,editingTxOriginalDate=null,editingAssetIndex=null,viewingTransferId=null;
 let catEditType=null,catEditIndex=null,catEditIcon='📦';
 let confirmCallback=null,recentExpanded=false;
 
@@ -761,6 +815,7 @@ async function openModal(id){
 }
 async function openNewTx(){
   editingTxId=null;
+  editingTxOriginalDate=null;
   document.getElementById('modal-tx-title').textContent='Нова операція';
   document.getElementById('tx-delete-btn').style.display='none';
   document.getElementById('tx-amount').value='';
@@ -821,13 +876,45 @@ async function setType(t){
   });
   document.getElementById('fields-main').style.display=t==='transfer'?'none':'block';
   document.getElementById('fields-transfer').style.display=t==='transfer'?'block':'none';
+  document.getElementById('tx-asset-group').style.display=t==='transfer'?'none':'block';
   if(t==='transfer'){
     await populateAssetSelect(document.getElementById('tr-from'),false);
     await populateAssetSelect(document.getElementById('tr-to'),false);
   } else {
     await populateCatSelect();
-    await populateAssetSelect(document.getElementById('tx-asset'),false);
+    await renderCardPicker();
   }
+}
+
+// ── CARD PICKER (visual cards instead of dropdown) ──
+async function renderCardPicker(){
+  const assets=await getAssets(curUser);
+  const picker=document.getElementById('tx-asset-picker');
+  const hiddenSel=document.getElementById('tx-asset');
+  if(!assets.length){
+    picker.innerHTML='<div class="empty" style="padding:16px"><div class="empty-text">Немає карток — додай у «Активи»</div></div>';
+    hiddenSel.innerHTML='';
+    return;
+  }
+  // preserve current selection if any, else default to first asset
+  let current=hiddenSel.value;
+  if(!current||!assets.find(a=>a.name===current))current=assets[0].name;
+  hiddenSel.innerHTML=assets.map(a=>`<option value="${a.name.replace(/"/g,'')}">${a.name}</option>`).join('');
+  hiddenSel.value=current;
+  picker.innerHTML=assets.map(a=>{
+    const ic=(a.type||'').match(/^\S+/)?.[0]||'💳';
+    const sel=a.name===current?' selected':'';
+    return `<div class="mini-card${sel}" onclick="pickCard('${a.name.replace(/'/g,"\\'")}')">
+      <div class="mini-card-icon">${ic}</div>
+      <div class="mini-card-name">${a.name}</div>
+    </div>`;
+  }).join('');
+}
+function pickCard(name){
+  document.getElementById('tx-asset').value=name;
+  document.querySelectorAll('#tx-asset-picker .mini-card').forEach(el=>{
+    el.classList.toggle('selected',el.querySelector('.mini-card-name').textContent===name);
+  });
 }
 
 // ── CALC ──
@@ -865,6 +952,15 @@ async function populateAssetSelect(selectEl,includeNone){
 }
 
 // ── SAVE TX (add + edit) ──
+function buildDateWithTime(dateVal,originalISO){
+  // combine the chosen date (day) with either the original time (edit) or current real time (new)
+  const base=originalISO?new Date(originalISO):new Date();
+  const timePart={h:base.getHours(),m:base.getMinutes(),s:base.getSeconds(),ms:base.getMilliseconds()};
+  if(!dateVal)return new Date().toISOString();
+  const [y,mo,d]=dateVal.split('-').map(Number);
+  const result=new Date(y,mo-1,d,timePart.h,timePart.m,timePart.s,timePart.ms);
+  return result.toISOString();
+}
 async function saveTxForm(){
   if(txType==='transfer'){await saveTransfer();return}
   const raw=document.getElementById('tx-amount').value;
@@ -875,12 +971,13 @@ async function saveTxForm(){
   const cat=document.getElementById('tx-cat').value;
   const note=document.getElementById('tx-note').value.trim();
   const dateVal=document.getElementById('tx-date').value;
-  const date=dateVal?new Date(dateVal+'T12:00:00').toISOString():new Date().toISOString();
   showLoader(true);
   if(editingTxId){
+    const date=buildDateWithTime(dateVal,editingTxOriginalDate);
     await updateTxRow({id:editingTxId,type:txType,amount,category:cat,note,assetName,date});
     showToast('✓ Збережено');
   }else{
+    const date=buildDateWithTime(dateVal,null);
     await addTxRow({id:Date.now(),user:curUser,type:txType,amount,category:cat,note,assetName,date});
     showToast('✓ Операцію додано');
   }
@@ -897,7 +994,7 @@ async function saveTransfer(){
   const fee=parseFloat(document.getElementById('tr-fee').value)||0;
   const note=document.getElementById('tr-note').value.trim();
   const trDateVal=document.getElementById('tr-date').value;
-  const trDate=trDateVal?new Date(trDateVal+'T12:00:00').toISOString():new Date().toISOString();
+  const trDate=buildDateWithTime(trDateVal,null);
   if(!from||!to){showToast('⚠️ Додай картки у «Активи»');return}
   if(from===to){showToast('⚠️ Обери різні картки');return}
   if(!amt||amt<=0){showToast('⚠️ Введи суму');return}
@@ -912,6 +1009,7 @@ async function saveTransfer(){
 }
 function resetTxForm(){
   editingTxId=null;
+  editingTxOriginalDate=null;
   document.getElementById('modal-tx-title').textContent='Нова операція';
   document.getElementById('tx-delete-btn').style.display='none';
   document.getElementById('tx-amount').value='';
@@ -936,13 +1034,14 @@ async function openTxItem(id){
 async function editTx(t){
   if(!t||t.type==='transfer')return;
   editingTxId=t.id;
+  editingTxOriginalDate=t.date;
   document.getElementById('modal-tx-title').textContent='Редагувати операцію';
   await setType(t.type);
   document.getElementById('tx-amount').value=t.amount;
   document.getElementById('tx-note').value=t.note||'';
   document.getElementById('tx-date').value=t.date?t.date.slice(0,10):new Date().toISOString().slice(0,10);
   document.getElementById('tx-cat').value=t.category;
-  document.getElementById('tx-asset').value=t.assetName||'';
+  if(t.assetName)pickCard(t.assetName);
   document.getElementById('tx-delete-btn').style.display='block';
   openModal('modal-tx');
 }
@@ -1077,16 +1176,28 @@ async function renderDashboard(){
     </div>
   `;
 
-  const catTotals={};allExp.forEach(t=>{catTotals[t.category]=(catTotals[t.category]||0)+t.amount});
-  const sorted=Object.entries(catTotals).sort((a,b)=>b[1]-a[1]).slice(0,7);
-  const max=sorted[0]?.[1]||1;
-  const colors=['#6c63ff','#22b8cf','#34d07a','#ffb547','#ff5c7a','#a78bfa','#fb923c'];
+  document.getElementById('cat-chart-legend').innerHTML=`<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:${curUser==='user1'?'var(--u1)':'var(--u2)'};display:inline-block"></span>${myName}</span>&nbsp;&nbsp;<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:${curUser==='user1'?'var(--u2)':'var(--u1)'};display:inline-block"></span>${partnerName}</span>`;
+  // category split: me vs partner per category
+  const myCatTotals={};myExp.forEach(t=>{myCatTotals[t.category]=(myCatTotals[t.category]||0)+t.amount});
+  const partnerCatTotals={};partnerExp.forEach(t=>{partnerCatTotals[t.category]=(partnerCatTotals[t.category]||0)+t.amount});
+  const allCatNames=[...new Set([...Object.keys(myCatTotals),...Object.keys(partnerCatTotals)])];
+  const catCombined=allCatNames.map(c=>({cat:c,mine:myCatTotals[c]||0,partner:partnerCatTotals[c]||0,total:(myCatTotals[c]||0)+(partnerCatTotals[c]||0)}));
+  const sortedCats=catCombined.sort((a,b)=>b.total-a.total).slice(0,7);
+  const maxCatVal=Math.max(...sortedCats.map(c=>Math.max(c.mine,c.partner)),1);
   const chart=document.getElementById('cat-chart');
-  chart.innerHTML=sorted.length?sorted.map(([cat,val],i)=>`
-    <div class="bar-row" onclick="showCatDetail('${cat.replace(/'/g,"\\'")}')">
-      <div class="bar-label">${cat}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(val/max*100).toFixed(1)}%;background:${colors[i%colors.length]}"></div></div>
-      <div class="bar-val">${fmt(val)} ₴</div>
+  chart.innerHTML=sortedCats.length?sortedCats.map(c=>`
+    <div class="cat-split-row" onclick="showCatDetail('${c.cat.replace(/'/g,"\\'")}')">
+      <div class="cat-split-label">${c.cat}</div>
+      <div class="cat-split-bars">
+        <div class="cat-split-bar-line">
+          <div class="bar-track sm"><div class="bar-fill" style="width:${(c.mine/maxCatVal*100).toFixed(1)}%;background:${curUser==='user1'?'var(--u1)':'var(--u2)'}"></div></div>
+          <span class="cat-split-val">${fmt(c.mine)} ₴</span>
+        </div>
+        <div class="cat-split-bar-line">
+          <div class="bar-track sm"><div class="bar-fill" style="width:${(c.partner/maxCatVal*100).toFixed(1)}%;background:${curUser==='user1'?'var(--u2)':'var(--u1)'}"></div></div>
+          <span class="cat-split-val">${fmt(c.partner)} ₴</span>
+        </div>
+      </div>
     </div>`).join(''):'<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Немає витрат цього місяця</div></div>';
 
   const recAll=allTx.filter(t=>t.type==='expense');
@@ -1230,18 +1341,68 @@ async function calcAssetBalance(assets,allTx,assetName){
 async function renderAssets(){
   const list=await getAssets(curUser);
   const allTx=await getTx();
-  const rows=await Promise.all(list.map(async(a)=>{
+  const cards=await Promise.all(list.map(async(a)=>{
     const bal=await calcAssetBalance(list,allTx,a.name);
     const balCls=bal>0?'pos':(bal<0?'neg':'zero');
     const typeEmoji=(a.type||'').match(/^\S+/)?.[0]||'💳';
-    const iconHtml=a.iconUrl?`<img src="${a.iconUrl}" alt="icon" onerror="this.outerHTML='${typeEmoji}'">`:typeEmoji;
-    return `<div class="asset-item" onclick="openAssetModal('${a.id}')">
-      <div class="asset-icon">${iconHtml}</div>
-      <div style="flex:1"><div class="asset-name">${a.name}</div><div class="asset-type">${stripEmoji(a.type)}</div></div>
-      <div class="asset-balance ${balCls}">${fmt(bal)} ₴</div>
+    const iconHtml=a.iconUrl?`<img src="${a.iconUrl}" alt="icon" style="width:22px;height:22px;border-radius:5px;object-fit:cover" onerror="this.outerHTML='${typeEmoji}'">`:typeEmoji;
+    return `<div class="asset-card" data-id="${a.id}" onclick="assetCardClick(event,'${a.id}')">
+      <div class="asset-card-top">
+        <div class="asset-card-icon">${iconHtml}</div>
+        <div class="asset-card-drag" onclick="event.stopPropagation()">⠿</div>
+      </div>
+      <div class="asset-card-name">${a.name}</div>
+      <div class="asset-card-type">${stripEmoji(a.type)}</div>
+      <div class="asset-card-balance ${balCls}">${fmt(bal)} ₴</div>
     </div>`;
   }));
-  document.getElementById('asset-list').innerHTML=rows.length?rows.join(''):'<div class="empty"><div class="empty-icon">💳</div><div class="empty-text">Додай свої картки та рахунки</div></div>';
+  const container=document.getElementById('asset-list');
+  container.innerHTML=cards.length?`<div class="asset-card-grid" id="asset-grid">${cards.join('')}</div>`:'<div class="empty"><div class="empty-icon">💳</div><div class="empty-text">Додай свої картки та рахунки</div></div>';
+  if(cards.length)initAssetSortable();
+}
+function assetCardClick(e,id){
+  openAssetModal(id);
+}
+function initAssetSortable(){
+  const container=document.getElementById('asset-grid');
+  if(!container)return;
+  let dragEl=null,startX=0,startY=0,didDrag=false;
+  container.querySelectorAll('.asset-card').forEach(card=>{
+    const handle=card.querySelector('.asset-card-drag');
+    handle.addEventListener('pointerdown',e=>{
+      e.preventDefault();
+      dragEl=card;didDrag=false;
+      card.classList.add('dragging');
+      try{handle.setPointerCapture(e.pointerId)}catch{}
+    });
+    handle.addEventListener('pointermove',e=>{
+      if(!dragEl)return;
+      didDrag=true;
+      const cardsArr=[...container.querySelectorAll('.asset-card')];
+      const x=e.clientX,y=e.clientY;
+      for(const c of cardsArr){
+        if(c===dragEl)continue;
+        const rect=c.getBoundingClientRect();
+        if(x>rect.left&&x<rect.right&&y>rect.top&&y<rect.bottom){
+          const di=cardsArr.indexOf(dragEl),ti=cardsArr.indexOf(c);
+          if(di<ti)c.after(dragEl);else c.before(dragEl);
+          break;
+        }
+      }
+    });
+    const finish=async()=>{
+      if(!dragEl)return;
+      dragEl.classList.remove('dragging');
+      const cardsArr=[...container.querySelectorAll('.asset-card')];
+      const newOrder=cardsArr.map(c=>c.dataset.id);
+      saveAssetOrder(curUser,newOrder);
+      _assetsCache[curUser]=null;
+      dragEl=null;
+      await renderAssets();
+    };
+    handle.addEventListener('pointerup',finish);
+    handle.addEventListener('pointercancel',finish);
+  });
 }
 async function openAssetModal(assetId){
   const t=document.getElementById('modal-asset-title');
@@ -1276,22 +1437,16 @@ async function saveAsset(){
   if(!name){showToast('⚠️ Введи назву');return}
   showLoader(true);
   const isEdit=editingAssetIndex!==null;
-  const body={name,type,initial_balance:initialBalance,icon_url:iconUrl||null};
-  let ok=false;
   if(isEdit){
-    const r=await sbFetch('assets?id=eq.'+editingAssetIndex.id,{method:'PATCH',body:JSON.stringify(body)});
-    ok=true; // PATCH повертає null при success
+    const oldName=editingAssetIndex.name;
+    await saveAssetRow(curUser,{id:editingAssetIndex.id,name,type,initialBalance,iconUrl,oldName},true);
   } else {
-    const r=await sbFetch('assets',{method:'POST',body:JSON.stringify({user_id:curUser,...body})});
-    ok=true; // POST повертає null при success
+    await saveAssetRow(curUser,{name,type,initialBalance,iconUrl},false);
   }
-  _assetsCache[curUser]=null;
   showLoader(false);
-  if(ok){
-    closeModal('modal-asset');
-    await renderAssets();
-    showToast('✓ Збережено');
-  }
+  closeModal('modal-asset');
+  await renderAssets();
+  showToast('✓ Збережено');
 }
 function deleteAssetFromModal(){
   const a=editingAssetIndex;
