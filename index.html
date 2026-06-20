@@ -365,7 +365,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
   </div>
 
-  <button class="fab" onclick="openModal('modal-tx')" title="Нова операція">＋</button>
+  <button class="fab" onclick="openNewTx()" title="Нова операція">＋</button>
 
   <div class="bottom-nav">
     <button class="bottom-nav-item active" onclick="goTab('dashboard')"><span class="bottom-nav-icon">📊</span><span>Огляд</span></button>
@@ -748,15 +748,6 @@ async function saveNames(){
 
 // ── MODALS ──
 async function openModal(id){
-  if(id==='modal-tx'){
-    if(txType==='transfer'){
-      await populateAssetSelect(document.getElementById('tr-from'),false);
-      await populateAssetSelect(document.getElementById('tr-to'),false);
-    } else {
-      await populateCatSelect();
-      await populateAssetSelect(document.getElementById('tx-asset'),false);
-    }
-  }
   if(id==='modal-names'){
     const n=await getNames();
     document.getElementById('n1-inp').value=n.user1;
@@ -764,6 +755,21 @@ async function openModal(id){
   }
   if(id==='modal-emoji')renderEmojiGrid();
   document.getElementById(id).classList.add('open');
+}
+async function openNewTx(){
+  editingTxId=null;
+  document.getElementById('modal-tx-title').textContent='Нова операція';
+  document.getElementById('tx-delete-btn').style.display='none';
+  document.getElementById('tx-amount').value='';
+  document.getElementById('tx-note').value='';
+  document.getElementById('calc-result').textContent='';
+  document.getElementById('tx-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('tr-amount').value='';
+  document.getElementById('tr-fee').value='0';
+  document.getElementById('tr-note').value='';
+  document.getElementById('tr-date').value=new Date().toISOString().slice(0,10);
+  await setType('expense');
+  openModal('modal-tx');
 }
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
